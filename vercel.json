@@ -7,11 +7,18 @@
     "api/auth.js": {
       "maxDuration": 60
     },
+    "api/records.js": {
+      "maxDuration": 60
+    },
     "api/index.js": {
       "maxDuration": 60
     }
   },
   "rewrites": [
+    {
+      "source": "/api/records/(.*)",
+      "destination": "/api/records"
+    },
     {
       "source": "/api/(.*)",
       "destination": "/api/index"
