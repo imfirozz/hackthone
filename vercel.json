@@ -1,0 +1,57 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "installCommand": "npm install && npm --prefix Hackthone_frontend install",
+  "buildCommand": "npm --prefix Hackthone_frontend run build",
+  "outputDirectory": "Hackthone_frontend/dist",
+  "functions": {
+    "api/index.js": {
+      "maxDuration": 60
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "/api/index"
+    },
+    {
+      "source": "/register",
+      "destination": "/api/index"
+    },
+    {
+      "source": "/login",
+      "destination": "/api/index"
+    },
+    {
+      "source": "/login/google",
+      "destination": "/api/index"
+    },
+    {
+      "source": "/login/google/redirect",
+      "destination": "/api/index"
+    },
+    {
+      "source": "/forgot-password",
+      "destination": "/api/index"
+    },
+    {
+      "source": "/reset-password",
+      "destination": "/api/index"
+    },
+    {
+      "source": "/admin/login",
+      "destination": "/api/index"
+    },
+    {
+      "source": "/admin/register",
+      "destination": "/api/index"
+    },
+    {
+      "source": "/logout",
+      "destination": "/api/index"
+    },
+    {
+      "source": "/me",
+      "destination": "/api/index"
+    }
+  ]
+}

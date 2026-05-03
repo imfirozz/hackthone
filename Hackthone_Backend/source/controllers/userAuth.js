@@ -75,8 +75,27 @@ function getPrimaryFrontendUrl() {
   return FRONTEND_ORIGINS[0] || "http://localhost:5177";
 }
 
-function buildFrontendHashUrl(pathWithQuery = "/login") {
-  const frontendBase = getPrimaryFrontendUrl().replace(/\/$/, "");
+function resolveFrontendBaseUrl(req) {
+  const explicitOrigin = normalizeField(req?.headers?.origin);
+
+  if (explicitOrigin) {
+    return explicitOrigin.replace(/\/$/, "");
+  }
+
+  const forwardedProto = normalizeField(req?.headers?.["x-forwarded-proto"]);
+  const forwardedHost = normalizeField(req?.headers?.["x-forwarded-host"]);
+  const host = forwardedHost || normalizeField(req?.headers?.host);
+
+  if (host) {
+    const protocol = forwardedProto || "https";
+    return `${protocol}://${host}`.replace(/\/$/, "");
+  }
+
+  return getPrimaryFrontendUrl().replace(/\/$/, "");
+}
+
+function buildFrontendHashUrl(req, pathWithQuery = "/login") {
+  const frontendBase = resolveFrontendBaseUrl(req);
   const normalizedPath = pathWithQuery.startsWith("/")
     ? pathWithQuery
     : `/${pathWithQuery}`;
@@ -96,7 +115,7 @@ function getResetTokenIndexKey(userId) {
   return `password-reset-user:${userId}`;
 }
 
-async function createPasswordResetSession(user) {
+async function createPasswordResetSession(user, req) {
   const rawToken = crypto.randomBytes(32).toString("hex");
   const tokenHash = hashResetToken(rawToken);
   const tokenKey = getResetTokenKey(tokenHash);
@@ -120,7 +139,7 @@ async function createPasswordResetSession(user) {
 
   return {
     resetToken: rawToken,
-    resetUrl: `${getPrimaryFrontendUrl().replace(/\/$/, "")}/#/verification?token=${encodeURIComponent(rawToken)}`,
+    resetUrl: `${resolveFrontendBaseUrl(req)}/#/verification?token=${encodeURIComponent(rawToken)}`,
     expiresInMinutes: PASSWORD_RESET_TTL_MINUTES,
   };
 }
@@ -341,6 +360,7 @@ const googleRedirectLogin = async (req, res) => {
 
     if (!credential) {
       const redirectUrl = buildFrontendHashUrl(
+        req,
         `/login?googleError=${encodeURIComponent("Google credential is required.")}`,
       );
       return res.redirect(302, redirectUrl);
@@ -352,11 +372,13 @@ const googleRedirectLogin = async (req, res) => {
     setAuthCookie(res, authPayload.token);
 
     const redirectUrl = buildFrontendHashUrl(
+      req,
       `/login?googleToken=${encodeURIComponent(authPayload.token)}`,
     );
     return res.redirect(302, redirectUrl);
   } catch (err) {
     const redirectUrl = buildFrontendHashUrl(
+      req,
       `/login?googleError=${encodeURIComponent(err.message || "Google sign-in failed")}`,
     );
     return res.redirect(302, redirectUrl);
@@ -388,7 +410,7 @@ const forgotPassword = async (req, res) => {
       });
     }
 
-    const resetSession = await createPasswordResetSession(user);
+    const resetSession = await createPasswordResetSession(user, req);
     const responseBody = {
       message: "Password reset link generated successfully.",
       expiresInMinutes: resetSession.expiresInMinutes,

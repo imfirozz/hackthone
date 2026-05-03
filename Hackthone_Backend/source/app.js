@@ -1,0 +1,109 @@
+const path = require("path");
+const fs = require("fs");
+require("dotenv").config({ path: path.resolve(__dirname, "../.env") });
+const express = require("express");
+const cookieParser = require("cookie-parser");
+
+const connectDatabase = require("./config/DataBase");
+const authRouter = require("./routes/userAuth");
+const resumeRouter = require("./routes/resumeRoutes");
+const interviewRouter = require("./routes/interviewRoutes");
+const recordsRouter = require("./routes/recordsRoutes");
+const redisClient = require("./config/redis");
+
+const frontendDistPath = path.resolve(__dirname, "../../Hackthone_frontend/dist");
+const frontendIndexPath = path.join(frontendDistPath, "index.html");
+const allowedOrigins = (
+  process.env.FRONTEND_URL || "http://localhost:5177,http://localhost:5173"
+)
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
+const app = express();
+
+app.use((req, res, next) => {
+  const requestOrigin = req.headers.origin;
+  const matchedOrigin = requestOrigin
+    ? allowedOrigins.find((origin) => origin === requestOrigin)
+    : "";
+
+  if (!requestOrigin || matchedOrigin) {
+    res.header("Access-Control-Allow-Origin", requestOrigin || allowedOrigins[0]);
+    res.header("Access-Control-Allow-Credentials", "true");
+    res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    res.header("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
+  }
+
+  if (req.method === "OPTIONS") {
+    return res.sendStatus(204);
+  }
+
+  return next();
+});
+
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
+
+app.use("/", authRouter);
+app.use("/api/resume", resumeRouter);
+app.use("/api/interview", interviewRouter);
+app.use("/api/records", recordsRouter);
+
+if (fs.existsSync(frontendDistPath)) {
+  app.use(express.static(frontendDistPath));
+
+  app.get("/", (_req, res) => {
+    res.sendFile(frontendIndexPath);
+  });
+}
+
+redisClient.on("error", (error) => {
+  console.log(`Redis unavailable: ${error.message}`);
+});
+
+let initializationPromise = null;
+let redisInitializationPromise = null;
+
+async function ensureRedisConnection() {
+  if (redisClient?.isOpen) {
+    return;
+  }
+
+  if (!redisInitializationPromise) {
+    redisInitializationPromise = redisClient
+      .connect()
+      .then(() => {
+        console.log("Redis connected");
+      })
+      .catch((error) => {
+        console.log(`Redis disabled for this run: ${error.message}`);
+      });
+  }
+
+  await redisInitializationPromise;
+}
+
+async function initializeServices() {
+  if (!initializationPromise) {
+    initializationPromise = (async () => {
+      await connectDatabase();
+      console.log("DB connected");
+      await ensureRedisConnection();
+      return app;
+    })().catch((error) => {
+      initializationPromise = null;
+      throw error;
+    });
+  }
+
+  return initializationPromise;
+}
+
+module.exports = {
+  app,
+  initializeServices,
+  frontendDistPath,
+  frontendIndexPath,
+};
