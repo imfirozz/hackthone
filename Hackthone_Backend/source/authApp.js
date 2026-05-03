@@ -1,5 +1,16 @@
 const path = require("path");
-require("dotenv").config({ path: path.resolve(__dirname, "../.env") });
+const fs = require("fs");
+const envPaths = [
+  path.resolve(__dirname, "../.env"),
+  path.resolve(process.cwd(), "Hackthone_Backend/.env"),
+  path.resolve(process.cwd(), ".env")
+];
+for (const envPath of envPaths) {
+  if (fs.existsSync(envPath)) {
+    require("dotenv").config({ path: envPath });
+    break;
+  }
+}
 const express = require("express");
 const cookieParser = require("cookie-parser");
 
