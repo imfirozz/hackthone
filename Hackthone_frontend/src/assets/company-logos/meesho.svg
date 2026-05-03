@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="Meesho logo">
+  <title>Meesho</title>
+  <rect x="30" y="30" width="196" height="196" rx="42" fill="#f43397"/>
+  <path d="M64 170V84h24l40 44 40-44h24v86h-24v-50l-40 42-40-42v50z" fill="#ffffff"/>
+</svg>

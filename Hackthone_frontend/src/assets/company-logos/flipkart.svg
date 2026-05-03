@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="Flipkart logo">
+  <title>Flipkart</title>
+  <path d="M92 63c0-14 10-25 24-25s24 11 24 25" fill="none" stroke="#facc15" stroke-linecap="round" stroke-width="14"/>
+  <rect x="40" y="58" width="176" height="168" rx="28" fill="#2874f0"/>
+  <path d="M102 92h60v18h-38v22h34v17h-34v50h-22z" fill="#facc15"/>
+</svg>

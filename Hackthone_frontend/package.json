@@ -1,0 +1,32 @@
+{
+  "name": "hack-project",
+  "version": "1.0.0",
+  "description": "",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "parcel src/index.html --port 5177 --no-cache",
+    "start": "parcel src/index.html --port 5177 --no-cache",
+    "build": "parcel build src/index.html --no-cache"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@tailwindcss/postcss": "^4.2.2",
+    "framer-motion": "^12.38.0",
+    "parcel": "^2.16.4",
+    "postcss": "^8.5.9",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5",
+    "react-router": "^6.30.3",
+    "react-router-dom": "^6.30.3",
+    "react-simple-typewriter": "^5.0.1",
+    "recharts": "^3.8.1",
+    "tailwindcss": "^4.2.2"
+  },
+  "devDependencies": {
+    "@babel/cli": "^7.28.6",
+    "@babel/core": "^7.29.0",
+    "@babel/preset-env": "^7.29.2",
+    "buffer": "^6.0.3"
+  }
+}

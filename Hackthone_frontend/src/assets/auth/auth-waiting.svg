@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 520" role="img" aria-labelledby="title desc">
+  <title id="title">Man waiting to login</title>
+  <desc id="desc">Monochrome cartoon illustration of a man waiting beside a laptop and login panel.</desc>
+
+  <rect width="760" height="520" fill="#f8fafc"/>
+  <rect x="60" y="74" width="640" height="370" rx="28" fill="#ffffff" stroke="#cbd5e1" stroke-width="3"/>
+
+  <rect x="96" y="118" width="250" height="280" rx="22" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="2"/>
+  <rect x="126" y="155" width="190" height="18" rx="9" fill="#94a3b8"/>
+  <rect x="126" y="188" width="190" height="18" rx="9" fill="#cbd5e1"/>
+  <rect x="126" y="221" width="190" height="18" rx="9" fill="#cbd5e1"/>
+  <rect x="126" y="276" width="190" height="46" rx="14" fill="#0f172a"/>
+  <rect x="126" y="336" width="120" height="12" rx="6" fill="#94a3b8"/>
+
+  <ellipse cx="530" cy="400" rx="92" ry="18" fill="#cbd5e1"/>
+  <rect x="476" y="244" width="112" height="130" rx="30" fill="#334155"/>
+  <rect x="460" y="262" width="26" height="74" rx="13" fill="#334155"/>
+  <rect x="578" y="262" width="26" height="74" rx="13" fill="#334155"/>
+
+  <circle cx="532" cy="210" r="44" fill="#e2e8f0"/>
+  <path d="M487 206c12-42 76-42 88 0v-24c-12-42-76-42-88 0z" fill="#1e293b"/>
+  <circle cx="516" cy="206" r="5" fill="#334155"/>
+  <circle cx="547" cy="206" r="5" fill="#334155"/>
+  <path d="M515 226c8 8 22 8 30 0" fill="none" stroke="#334155" stroke-width="4" stroke-linecap="round"/>
+
+  <rect x="492" y="372" width="32" height="46" rx="16" fill="#1e293b"/>
+  <rect x="540" y="372" width="32" height="46" rx="16" fill="#1e293b"/>
+  <ellipse cx="507" cy="419" rx="16" ry="8" fill="#0f172a"/>
+  <ellipse cx="556" cy="419" rx="16" ry="8" fill="#0f172a"/>
+
+  <rect x="410" y="372" width="88" height="12" rx="6" fill="#475569"/>
+  <rect x="444" y="384" width="20" height="36" rx="10" fill="#475569"/>
+
+  <rect x="534" y="98" width="152" height="58" rx="18" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="554" y="133" fill="#334155" font-size="24" font-family="Arial, sans-serif">Waiting...</text>
+</svg>
