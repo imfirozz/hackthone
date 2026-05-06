@@ -84,6 +84,29 @@ const normalizeText = (value = "") => String(value).replace(/\s+/g, " ").trim();
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
+const isValidDate = (value) =>
+  value instanceof Date && !Number.isNaN(value.getTime());
+
+const toValidDate = (value, fallback = new Date()) => {
+  const parsedDate = value ? new Date(value) : null;
+
+  if (isValidDate(parsedDate)) {
+    return parsedDate;
+  }
+
+  return fallback;
+};
+
+const toTimestamp = (value, fallback = 0) => {
+  const parsedDate = value instanceof Date ? value : new Date(value);
+
+  if (isValidDate(parsedDate)) {
+    return parsedDate.getTime();
+  }
+
+  return fallback;
+};
+
 const average = (values = []) => {
   const numericValues = values.filter((value) => Number.isFinite(value));
 
@@ -150,13 +173,13 @@ const getRecordTimestamp = (record = {}) => {
   ];
 
   const matchedDate = dateCandidates.find((value) => value);
-  return matchedDate ? new Date(matchedDate) : new Date();
+  return toValidDate(matchedDate, new Date());
 };
 
 const getDateKey = (value) => {
-  const parsedDate = new Date(value);
+  const parsedDate = toValidDate(value, null);
 
-  if (Number.isNaN(parsedDate.getTime())) {
+  if (!parsedDate) {
     return "";
   }
 
@@ -164,12 +187,12 @@ const getDateKey = (value) => {
 };
 
 const calculateDurationMinutes = (record = {}) => {
-  const startedAt = record?.startedAt ? new Date(record.startedAt) : null;
-  const completedAt = record?.completedAt ? new Date(record.completedAt) : null;
+  const startedAt = record?.startedAt ? toValidDate(record.startedAt, null) : null;
+  const completedAt = record?.completedAt ? toValidDate(record.completedAt, null) : null;
   const latestStepAt = Array.isArray(record?.steps)
     ? [...record.steps]
-        .map((step) => (step?.submittedAt ? new Date(step.submittedAt) : null))
-        .filter((value) => value && !Number.isNaN(value.getTime()))
+        .map((step) => (step?.submittedAt ? toValidDate(step.submittedAt, null) : null))
+        .filter((value) => isValidDate(value))
         .sort((left, right) => right.getTime() - left.getTime())[0]
     : null;
   const sessionEnd = completedAt || latestStepAt;
@@ -177,8 +200,8 @@ const calculateDurationMinutes = (record = {}) => {
   if (
     startedAt &&
     sessionEnd &&
-    !Number.isNaN(startedAt.getTime()) &&
-    !Number.isNaN(sessionEnd.getTime())
+    isValidDate(startedAt) &&
+    isValidDate(sessionEnd)
   ) {
     const diffInMinutes = Math.round(
       Math.max(sessionEnd.getTime() - startedAt.getTime(), 0) / 60000,
@@ -528,7 +551,7 @@ const normalizeInterviewRecord = (record = {}) => {
   });
   const latestReview = getLatestReview(record);
   const dateValue = getRecordTimestamp(record);
-  const date = dateValue.toISOString();
+  const date = toValidDate(dateValue, new Date()).toISOString();
   const duration = calculateDurationMinutes(record);
   const focusTags = uniqueList([
     ...(Array.isArray(record?.focus) ? record.focus : []),
@@ -576,7 +599,7 @@ const normalizeInterviewRecord = (record = {}) => {
 const buildActivityStreak = (records = []) => {
   const uniqueDays = uniqueList(records.map((record) => getDateKey(record.date)))
     .filter(Boolean)
-    .sort((left, right) => new Date(right) - new Date(left));
+    .sort((left, right) => toTimestamp(right) - toTimestamp(left));
 
   if (uniqueDays.length === 0) {
     return 0;
@@ -626,9 +649,20 @@ const fetchInterviewRecords = async ({ scope = "all", user = null } = {}) => {
   const persistedSessions = await loadPersistedSessions({ scope, user });
 
   return persistedSessions
-    .map((record) => normalizeInterviewRecord(record))
+    .map((record) => {
+      try {
+        return normalizeInterviewRecord(record);
+      } catch (error) {
+        console.log(
+          `Skipping malformed interview record ${
+            normalizeText(record?.sessionId) || "<unknown>"
+          }: ${error.message}`,
+        );
+        return null;
+      }
+    })
     .filter(Boolean)
-    .sort((left, right) => new Date(right.date) - new Date(left.date));
+    .sort((left, right) => toTimestamp(right.date) - toTimestamp(left.date));
 };
 
 const buildCandidateDirectory = (records = []) => {
@@ -646,10 +680,10 @@ const buildCandidateDirectory = (records = []) => {
   return Object.values(groupedCandidates)
     .map((candidateRecords) => {
       const sortedNewestFirst = [...candidateRecords].sort(
-        (left, right) => new Date(right.date) - new Date(left.date),
+        (left, right) => toTimestamp(right.date) - toTimestamp(left.date),
       );
       const sortedOldestFirst = [...candidateRecords].sort(
-        (left, right) => new Date(left.date) - new Date(right.date),
+        (left, right) => toTimestamp(left.date) - toTimestamp(right.date),
       );
       const latestRecord = sortedNewestFirst[0];
       const firstRecord = sortedOldestFirst[0];

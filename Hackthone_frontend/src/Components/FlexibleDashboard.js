@@ -30,11 +30,18 @@ export default function FlexibleDashboard() {
     setLoadError("");
 
     try {
-      const [interviewResponse, leaderboardResponse] = await Promise.all([
+      const [interviewResult, leaderboardResult] = await Promise.allSettled([
         fetchInterviewRecords({ scope: "mine" }),
         fetchLeaderboard({ scope: "all" }),
       ]);
 
+      if (interviewResult.status !== "fulfilled") {
+        throw interviewResult.reason;
+      }
+
+      const interviewResponse = interviewResult.value;
+      const leaderboardResponse =
+        leaderboardResult.status === "fulfilled" ? leaderboardResult.value : null;
       const myRecords = Array.isArray(interviewResponse?.records)
         ? interviewResponse.records
         : [];
@@ -44,6 +51,14 @@ export default function FlexibleDashboard() {
 
       setInterviewRecords(myRecords);
       setLeaderboard(globalLeaderboard);
+
+      if (leaderboardResult.status !== "fulfilled") {
+        setLoadError(
+          leaderboardResult.reason?.message ||
+            "Leaderboard is temporarily unavailable. Your saved sessions are still shown below.",
+        );
+      }
+
       setActiveRecordId((currentRecordId) => {
         if (currentRecordId && myRecords.some((record) => record.id === currentRecordId)) {
           return currentRecordId;
