@@ -6,6 +6,7 @@
     "frontend": "npm --prefix \"Hackthone_frontend\" run dev"
   },
   "dependencies": {
+    "@napi-rs/canvas": "^0.1.80",
     "@google/genai": "^1.49.0",
     "axios": "^1.15.0",
     "bcrypt": "^6.0.0",

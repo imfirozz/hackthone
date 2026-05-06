@@ -399,7 +399,40 @@ const normalizeStructuredSkills = (data) => {
 
 const buildFallbackSkills = (text) => skillSetsToObject(extractCatalogMatches(text));
 
+const ensurePdfRuntimePolyfills = () => {
+  if (globalThis.DOMMatrix && globalThis.ImageData && globalThis.Path2D) {
+    return;
+  }
+
+  try {
+    const canvas = require("@napi-rs/canvas");
+
+    if (!globalThis.DOMMatrix && canvas.DOMMatrix) {
+      globalThis.DOMMatrix = canvas.DOMMatrix;
+    }
+
+    if (!globalThis.ImageData && canvas.ImageData) {
+      globalThis.ImageData = canvas.ImageData;
+    }
+
+    if (!globalThis.Path2D && canvas.Path2D) {
+      globalThis.Path2D = canvas.Path2D;
+    }
+
+    if (!globalThis.navigator?.language) {
+      globalThis.navigator = {
+        language: "en-US",
+        platform: "",
+        userAgent: "",
+      };
+    }
+  } catch (error) {
+    // Let the parser fail with its native error if the runtime polyfill cannot load.
+  }
+};
+
 const getPdfParseClass = () => {
+  ensurePdfRuntimePolyfills();
   const { PDFParse } = require("pdf-parse");
   return PDFParse;
 };
