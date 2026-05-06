@@ -487,7 +487,11 @@ const parseResumeBuffer = async (fileBuffer) => {
     const parsedPdf = await parser.getText();
     extractedText = cleanText(parsedPdf.text);
   } finally {
-    await parser.destroy();
+    try {
+      await parser.destroy();
+    } catch (error) {
+      // Parser cleanup should not fail the whole upload after text extraction succeeds.
+    }
   }
 
   if (!extractedText) {

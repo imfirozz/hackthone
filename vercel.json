@@ -7,6 +7,9 @@
     "api/auth.js": {
       "maxDuration": 60
     },
+    "api/resume.js": {
+      "maxDuration": 60
+    },
     "api/records.js": {
       "maxDuration": 60
     },
@@ -15,6 +18,10 @@
     }
   },
   "rewrites": [
+    {
+      "source": "/api/resume/(.*)",
+      "destination": "/api/resume"
+    },
     {
       "source": "/api/records/(.*)",
       "destination": "/api/records"
