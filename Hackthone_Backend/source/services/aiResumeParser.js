@@ -1,6 +1,3 @@
-const { PDFParse } = require("pdf-parse");
-const { GoogleGenAI } = require("@google/genai");
-
 const GEMINI_MODEL = "gemini-2.5-flash";
 const SKILL_KEYS = ["languages", "frameworks", "tools", "concepts"];
 const SECTION_LABEL_SOURCE =
@@ -402,6 +399,16 @@ const normalizeStructuredSkills = (data) => {
 
 const buildFallbackSkills = (text) => skillSetsToObject(extractCatalogMatches(text));
 
+const getPdfParseClass = () => {
+  const { PDFParse } = require("pdf-parse");
+  return PDFParse;
+};
+
+const getGoogleGenAI = () => {
+  const { GoogleGenAI } = require("@google/genai");
+  return GoogleGenAI;
+};
+
 const parseWithGemini = async (text) => {
   const apiKey = (process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || "").trim();
 
@@ -409,6 +416,7 @@ const parseWithGemini = async (text) => {
     return null;
   }
 
+  const GoogleGenAI = getGoogleGenAI();
   const ai = new GoogleGenAI({ apiKey });
   const response = await ai.models.generateContent({
     model: GEMINI_MODEL,
@@ -480,6 +488,7 @@ ${text}
 };
 
 const parseResumeBuffer = async (fileBuffer) => {
+  const PDFParse = getPdfParseClass();
   const parser = new PDFParse({ data: fileBuffer });
   let extractedText = "";
 

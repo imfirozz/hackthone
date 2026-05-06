@@ -1,7 +1,5 @@
 const express = require("express");
 const multer = require("multer");
-const { parseResumeBuffer } = require("../services/aiResumeParser");
-
 const resumeRouter = express.Router();
 
 const upload = multer({
@@ -35,6 +33,7 @@ resumeRouter.post("/upload", (req, res) => {
         });
       }
 
+      const { parseResumeBuffer } = require("../services/aiResumeParser");
       const result = await parseResumeBuffer(req.file.buffer);
 
       return res.status(200).json({
