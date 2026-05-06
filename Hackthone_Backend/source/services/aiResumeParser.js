@@ -434,6 +434,9 @@ const ensurePdfRuntimePolyfills = () => {
 const getPdfParseClass = () => {
   ensurePdfRuntimePolyfills();
   const { PDFParse } = require("pdf-parse");
+  const { getData } = require("pdf-parse/worker");
+
+  PDFParse.setWorker(getData());
   return PDFParse;
 };
 
