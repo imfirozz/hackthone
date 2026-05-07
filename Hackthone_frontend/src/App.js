@@ -18,6 +18,7 @@ import LeaderboardPage from "./Components/LeaderboardPage";
 import CandidatesPage from "./Components/CandidatesPage";
 import InterviewSession from "./Components/InterviewSession";
 import SettingsPage from "./Components/SettingsPage";
+import ChatBotIcon from "./Components/ChatBotIcon";
 import { BRAND_LOGO_URL } from "./brandAssets";
 
 import { useLocation } from "react-router-dom";
@@ -174,6 +175,7 @@ function AppFrame() {
           <Route path="*" element={<Home />} />
         </Routes>
       </div>
+      <ChatBotIcon />
       <RouteSkeletonOverlay />
     </div>
   );
