@@ -622,14 +622,36 @@ function stopSpeaking() {
 }
 
 function SplineOrb() {
+  const splineRef = useRef(null);
+
+  useEffect(() => {
+    const container = splineRef.current;
+    if (!container) return;
+
+    // Try to load Spline as a background enhancement
+    try {
+      container.innerHTML = "";
+      const viewer = document.createElement("spline-viewer");
+      viewer.setAttribute("url", "https://prod.spline.design/k78XjvdTnIDSn02B/scene.splinecode");
+      viewer.style.cssText = "display:block;width:100%;height:100%;position:absolute;inset:0;z-index:1;";
+      container.appendChild(viewer);
+    } catch (_) {
+      // Spline failed to load — the image fallback will show
+    }
+  }, []);
+
   return (
-    <div
-      className="arena-spline-viewer"
-      style={{
-        background:
-          "radial-gradient(circle at 30% 20%, rgba(249,115,22,0.26), transparent 28%), radial-gradient(circle at 68% 32%, rgba(14,165,233,0.18), transparent 24%), radial-gradient(circle at 50% 70%, rgba(255,255,255,0.08), transparent 30%)",
-      }}
-    />
+    <div className="arena-spline-viewer" style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "center" }}>
+      {/* Spline background layer */}
+      <div ref={splineRef} style={{ position: "absolute", inset: 0, zIndex: 1 }} />
+      {/* Always-visible AI orb image */}
+      <img
+        src={new URL("../assets/ai-orb.png", import.meta.url)}
+        alt="AI Interviewer"
+        className="arena-orb-image"
+        draggable="false"
+      />
+    </div>
   );
 }
 

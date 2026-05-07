@@ -40,16 +40,27 @@ function ScrollToTop() {
 }
 
 function AppBackground() {
+  const splineRef = React.useRef(null);
+
+  React.useEffect(() => {
+    const container = splineRef.current;
+    if (!container) return;
+
+    container.innerHTML = "";
+    const viewer = document.createElement("spline-viewer");
+    viewer.setAttribute("url", "https://prod.spline.design/k78XjvdTnIDSn02B/scene.splinecode");
+    viewer.style.cssText = "display:block;width:100%;height:100%;";
+    container.appendChild(viewer);
+
+    return () => {
+      container.innerHTML = "";
+    };
+  }, []);
+
   return (
     <div className="app-background" aria-hidden="true">
       <div className="app-spline-wrap">
-        <div
-          className="app-spline-viewer"
-          style={{
-            background:
-              "radial-gradient(circle at 30% 20%, rgba(59,130,246,0.28), transparent 32%), radial-gradient(circle at 70% 30%, rgba(34,197,94,0.22), transparent 28%), radial-gradient(circle at 50% 75%, rgba(14,165,233,0.18), transparent 30%)",
-          }}
-        />
+        <div className="app-spline-viewer" ref={splineRef} />
       </div>
       <div className="app-spline-badge-mask" />
     </div>

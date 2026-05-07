@@ -1,4 +1,4 @@
-const { GoogleGenAI } = require("@google/genai");
+const { getApiKeyManager } = require("../config/apiKeyManager");
 
 const GEMINI_MODEL = "gemini-2.5-flash";
 
@@ -95,7 +95,11 @@ const extractJsonPayload = (value = "") => {
   const firstBraceIndex = strippedValue.indexOf("{");
   const lastBraceIndex = strippedValue.lastIndexOf("}");
 
-  if (firstBraceIndex === -1 || lastBraceIndex === -1 || lastBraceIndex < firstBraceIndex) {
+  if (
+    firstBraceIndex === -1 ||
+    lastBraceIndex === -1 ||
+    lastBraceIndex < firstBraceIndex
+  ) {
     return strippedValue;
   }
 
@@ -139,7 +143,9 @@ const normalizeScoreList = (value) => {
   };
 
   if (Array.isArray(value)) {
-    return value.map((item) => toNormalizedScore(item)).filter((score) => score !== null);
+    return value
+      .map((item) => toNormalizedScore(item))
+      .filter((score) => score !== null);
   }
 
   if (typeof value === "string") {
@@ -184,7 +190,10 @@ const limitSentences = (value = "", maxSentences = 2) => {
     return "";
   }
 
-  const sentences = cleanedValue.match(/[^.!?]+[.!?]?/g)?.map((sentence) => cleanText(sentence)) || [];
+  const sentences =
+    cleanedValue
+      .match(/[^.!?]+[.!?]?/g)
+      ?.map((sentence) => cleanText(sentence)) || [];
   if (sentences.length <= maxSentences) {
     return cleanedValue;
   }
@@ -206,10 +215,22 @@ const normalizeEvaluation = (value) => {
 
   return {
     score: normalizeScore(data.score),
-    feedback: limitWords(typeof data.feedback === "string" ? data.feedback : "", 20),
+    feedback: limitWords(
+      typeof data.feedback === "string" ? data.feedback : "",
+      20,
+    ),
     strength: safeStrength,
-    improvement: limitWords(typeof data.improvement === "string" ? data.improvement : "", 20),
-    idealAnswer: limitWords(limitSentences(typeof data.idealAnswer === "string" ? data.idealAnswer : "", 2), 36),
+    improvement: limitWords(
+      typeof data.improvement === "string" ? data.improvement : "",
+      20,
+    ),
+    idealAnswer: limitWords(
+      limitSentences(
+        typeof data.idealAnswer === "string" ? data.idealAnswer : "",
+        2,
+      ),
+      36,
+    ),
     confidence: normalizeConfidence(data.confidence),
   };
 };
@@ -301,14 +322,21 @@ const getAnswerSnippet = (answer = "") => {
     return "";
   }
 
-  const sentence = cleanedAnswer.split(/[.!?]/).map((part) => part.trim()).find(Boolean) || cleanedAnswer;
+  const sentence =
+    cleanedAnswer
+      .split(/[.!?]/)
+      .map((part) => part.trim())
+      .find(Boolean) || cleanedAnswer;
   return sentence.length > 80 ? `${sentence.slice(0, 77).trim()}...` : sentence;
 };
 
 const getQuestionIntent = (question = "") => {
   const normalizedQuestion = cleanText(question).toLowerCase();
 
-  if (/^what\b/.test(normalizedQuestion) || /\bwhat is\b/.test(normalizedQuestion)) {
+  if (
+    /^what\b/.test(normalizedQuestion) ||
+    /\bwhat is\b/.test(normalizedQuestion)
+  ) {
     return "definition";
   }
 
@@ -343,7 +371,9 @@ const getCoveredTerms = ({ question, skill, answer }) => {
   const answerTokenSet = new Set(tokenize(answer));
   const questionConceptTokens = getQuestionConceptTokens({ question, skill });
   const skillTokenSet = new Set(tokenize(skill));
-  const preferredTerms = getKeyTerms(question, 5).filter((term) => !skillTokenSet.has(term));
+  const preferredTerms = getKeyTerms(question, 5).filter(
+    (term) => !skillTokenSet.has(term),
+  );
   const coveredTerms = [];
   const consumedTokens = new Set();
 
@@ -372,7 +402,9 @@ const getMissingTerms = ({ question, skill, answer }) => {
   const answerTokenSet = new Set(tokenize(answer));
   const questionConceptTokens = getQuestionConceptTokens({ question, skill });
   const skillTokenSet = new Set(tokenize(skill));
-  const preferredTerms = getKeyTerms(question, 5).filter((term) => !skillTokenSet.has(term));
+  const preferredTerms = getKeyTerms(question, 5).filter(
+    (term) => !skillTokenSet.has(term),
+  );
   const missingTerms = [];
   const consumedTokens = new Set();
 
@@ -399,18 +431,25 @@ const getMissingTerms = ({ question, skill, answer }) => {
 
 const buildFallbackIdealAnswer = ({ question, answer, skill, score }) => {
   const sourceText = `${question} ${skill}`;
-  const libraryMatch = IDEAL_ANSWER_LIBRARY.find((entry) => entry.pattern.test(sourceText));
+  const libraryMatch = IDEAL_ANSWER_LIBRARY.find((entry) =>
+    entry.pattern.test(sourceText),
+  );
   if (libraryMatch) {
     return libraryMatch.answer;
   }
 
-  const conceptPhrase = extractConceptPhrase({ question, skill }) || getPrimaryTopic({ skill, question });
+  const conceptPhrase =
+    extractConceptPhrase({ question, skill }) ||
+    getPrimaryTopic({ skill, question });
   const topic = getPrimaryTopic({ skill, question }) || "the topic";
   const cleanedAnswer = cleanText(answer);
 
   if (score >= 4 && cleanedAnswer) {
-    const sentences =
-      cleanedAnswer.split(/[.!?]/).map((part) => part.trim()).filter(Boolean).slice(0, 2);
+    const sentences = cleanedAnswer
+      .split(/[.!?]/)
+      .map((part) => part.trim())
+      .filter(Boolean)
+      .slice(0, 2);
     const firstSentence = sentences[0] || cleanedAnswer;
 
     let rewritten = firstSentence;
@@ -428,7 +467,11 @@ const buildFallbackIdealAnswer = ({ question, answer, skill, score }) => {
     return limitWords(rewrittenSentences.join(" "), 36);
   }
 
-  if (conceptPhrase && topic && conceptPhrase.toLowerCase() !== topic.toLowerCase()) {
+  if (
+    conceptPhrase &&
+    topic &&
+    conceptPhrase.toLowerCase() !== topic.toLowerCase()
+  ) {
     return limitWords(
       `${conceptPhrase} is a core concept in ${topic}. It should be defined by its purpose and core mechanism.`,
       36,
@@ -443,7 +486,8 @@ const buildFallbackIdealAnswer = ({ question, answer, skill, score }) => {
 
 const countOverlap = (leftTokens, rightTokens) => {
   const rightTokenSet = new Set(rightTokens);
-  return [...new Set(leftTokens)].filter((token) => rightTokenSet.has(token)).length;
+  return [...new Set(leftTokens)].filter((token) => rightTokenSet.has(token))
+    .length;
 };
 
 const MEANINGLESS_ANSWER_PATTERN =
@@ -463,7 +507,9 @@ const NEGATED_CONTRADICTION_PATTERN =
 
 const getLibraryIdealAnswer = ({ question, skill }) => {
   const sourceText = `${question} ${skill}`;
-  const libraryMatch = IDEAL_ANSWER_LIBRARY.find((entry) => entry.pattern.test(sourceText));
+  const libraryMatch = IDEAL_ANSWER_LIBRARY.find((entry) =>
+    entry.pattern.test(sourceText),
+  );
   return libraryMatch?.answer || "";
 };
 
@@ -528,7 +574,11 @@ const getRecentTrend = (scores = []) => {
     return "stable";
   }
 
-  if (thirdScore < firstScore && thirdScore <= secondScore && (firstScore > secondScore || secondScore > thirdScore)) {
+  if (
+    thirdScore < firstScore &&
+    thirdScore <= secondScore &&
+    (firstScore > secondScore || secondScore > thirdScore)
+  ) {
     return "declining";
   }
 
@@ -544,7 +594,9 @@ const adjustConfidenceByTrend = (confidence, trend) => {
   }
 
   if (trend === "improving") {
-    return CONFIDENCE_LEVELS[Math.min(currentIndex + 1, CONFIDENCE_LEVELS.length - 1)];
+    return CONFIDENCE_LEVELS[
+      Math.min(currentIndex + 1, CONFIDENCE_LEVELS.length - 1)
+    ];
   }
 
   if (trend === "declining") {
@@ -556,7 +608,10 @@ const adjustConfidenceByTrend = (confidence, trend) => {
 
 const analyzePerformanceHistory = ({ allScores = [], currentScore = 0 }) => {
   const historicalScores = normalizeScoreList(allScores);
-  const scoreSeries = [...historicalScores, normalizeScore(currentScore)].filter((score) => Number.isFinite(score));
+  const scoreSeries = [
+    ...historicalScores,
+    normalizeScore(currentScore),
+  ].filter((score) => Number.isFinite(score));
 
   if (scoreSeries.length === 0) {
     return {
@@ -573,7 +628,9 @@ const analyzePerformanceHistory = ({ allScores = [], currentScore = 0 }) => {
   const weakScoreCount = scoreSeries.filter((score) => score <= 4).length;
 
   const consistency =
-    scoreSeries.length >= 3 && maximumScore - minimumScore <= 2 ? "stable" : "unstable";
+    scoreSeries.length >= 3 && maximumScore - minimumScore <= 2
+      ? "stable"
+      : "unstable";
 
   const trend = getRecentTrend(scoreSeries);
 
@@ -624,13 +681,23 @@ const getMissingConceptLabel = ({ questionIntent, conceptLabel }) => {
   return `the core concept of ${conceptLabel}`;
 };
 
-const buildFallbackEvaluation = ({ question, answer, skill, difficulty, recentScores = [], allScores = [] }) => {
+const buildFallbackEvaluation = ({
+  question,
+  answer,
+  skill,
+  difficulty,
+  recentScores = [],
+  allScores = [],
+}) => {
   const cleanedAnswer = cleanText(answer);
   const topic = getPrimaryTopic({ skill, question }) || "the topic";
   const conceptLabel = getConceptLabel({ question, skill });
   const questionIntent = getQuestionIntent(question);
   const normalizedDifficulty = normalizeDifficulty(difficulty);
-  const missingConceptLabel = getMissingConceptLabel({ questionIntent, conceptLabel });
+  const missingConceptLabel = getMissingConceptLabel({
+    questionIntent,
+    conceptLabel,
+  });
 
   if (!cleanedAnswer) {
     return normalizeEvaluation({
@@ -638,8 +705,14 @@ const buildFallbackEvaluation = ({ question, answer, skill, difficulty, recentSc
       feedback: `The answer is empty and does not explain ${conceptLabel}.`,
       strength: "It does not provide a usable technical explanation.",
       improvement: `Define ${conceptLabel} clearly and explain how it works.`,
-      idealAnswer: buildFallbackIdealAnswer({ question, answer, skill, score: 0 }),
-      confidence: analyzePerformanceHistory({ allScores, currentScore: 0 }).confidence,
+      idealAnswer: buildFallbackIdealAnswer({
+        question,
+        answer,
+        skill,
+        score: 0,
+      }),
+      confidence: analyzePerformanceHistory({ allScores, currentScore: 0 })
+        .confidence,
     });
   }
 
@@ -653,20 +726,39 @@ const buildFallbackEvaluation = ({ question, answer, skill, difficulty, recentSc
     idealAnswer: idealAnswerReference,
   });
   const overlapCount = countOverlap(answerTokens, contextTokens);
-  const idealOverlapCount = idealAnswerTokens.length > 0 ? countOverlap(answerTokens, idealAnswerTokens) : 0;
-  const supportOverlapCount = idealSupportTokens.length > 0 ? countOverlap(answerTokens, idealSupportTokens) : 0;
+  const idealOverlapCount =
+    idealAnswerTokens.length > 0
+      ? countOverlap(answerTokens, idealAnswerTokens)
+      : 0;
+  const supportOverlapCount =
+    idealSupportTokens.length > 0
+      ? countOverlap(answerTokens, idealSupportTokens)
+      : 0;
   const answerWordCount = cleanedAnswer.split(/\s+/).filter(Boolean).length;
-  const hasExample = /\b(example|for example|for instance|e\.g\.)\b/i.test(cleanedAnswer);
-  const hasReasoning = /\b(because|so that|therefore|which means|this means|helps|used to)\b/i.test(
+  const hasExample = /\b(example|for example|for instance|e\.g\.)\b/i.test(
     cleanedAnswer,
   );
+  const hasReasoning =
+    /\b(because|so that|therefore|which means|this means|helps|used to)\b/i.test(
+      cleanedAnswer,
+    );
   const hasMechanismSignal = MECHANISM_SIGNAL_PATTERN.test(cleanedAnswer);
   const hasTradeoffSignal = TRADEOFF_SIGNAL_PATTERN.test(cleanedAnswer);
-  const hasSystemLevelThinking = SYSTEM_LEVEL_SIGNAL_PATTERN.test(cleanedAnswer);
+  const hasSystemLevelThinking =
+    SYSTEM_LEVEL_SIGNAL_PATTERN.test(cleanedAnswer);
   const hasRealWorldExample = REAL_WORLD_EXAMPLE_PATTERN.test(cleanedAnswer);
-  const hasEightPlusQualifier = hasTradeoffSignal || hasSystemLevelThinking || hasRealWorldExample;
-  const coveredTerms = getCoveredTerms({ question, skill, answer: cleanedAnswer });
-  const missingTerms = getMissingTerms({ question, skill, answer: cleanedAnswer });
+  const hasEightPlusQualifier =
+    hasTradeoffSignal || hasSystemLevelThinking || hasRealWorldExample;
+  const coveredTerms = getCoveredTerms({
+    question,
+    skill,
+    answer: cleanedAnswer,
+  });
+  const missingTerms = getMissingTerms({
+    question,
+    skill,
+    answer: cleanedAnswer,
+  });
   const coveredTermsText = formatList(coveredTerms);
   const missingTermsText = formatList(missingTerms);
   const isMeaninglessAnswer =
@@ -681,7 +773,8 @@ const buildFallbackEvaluation = ({ question, answer, skill, difficulty, recentSc
     !hasExample &&
     idealOverlapCount < 2;
   const coherentExplanation =
-    answerWordCount >= 8 && (hasReasoning || hasMechanismSignal || idealOverlapCount >= 2);
+    answerWordCount >= 8 &&
+    (hasReasoning || hasMechanismSignal || idealOverlapCount >= 2);
   const contradictsCoreConcept =
     CONTRADICTION_SIGNAL_PATTERN.test(cleanedAnswer) &&
     !NEGATED_CONTRADICTION_PATTERN.test(cleanedAnswer) &&
@@ -690,7 +783,9 @@ const buildFallbackEvaluation = ({ question, answer, skill, difficulty, recentSc
     overlapCount >= 1;
   const hasCorrectnessAnchor = idealAnswerReference
     ? supportOverlapCount >= 2
-    : coveredTerms.length > 0 && missingTerms.length === 0 && (hasMechanismSignal || hasReasoning);
+    : coveredTerms.length > 0 &&
+      missingTerms.length === 0 &&
+      (hasMechanismSignal || hasReasoning);
   const isConceptuallyCorrect =
     !isMeaninglessAnswer &&
     !isKeywordOnlyAnswer &&
@@ -698,7 +793,10 @@ const buildFallbackEvaluation = ({ question, answer, skill, difficulty, recentSc
     hasCorrectnessAnchor;
   const isClearAnswer =
     answerWordCount >= 8 &&
-    (hasReasoning || hasMechanismSignal || supportOverlapCount >= 2 || coveredTerms.length > 0);
+    (hasReasoning ||
+      hasMechanismSignal ||
+      supportOverlapCount >= 2 ||
+      coveredTerms.length > 0);
   const isPartiallyCorrect =
     isConceptuallyCorrect &&
     (supportOverlapCount >= 2 || coveredTerms.length > 0) &&
@@ -710,13 +808,18 @@ const buildFallbackEvaluation = ({ question, answer, skill, difficulty, recentSc
   if (contradictsCoreConcept) {
     baseScore = overlapCount >= 2 ? 1 : 0;
   } else if (isMeaninglessAnswer || isKeywordOnlyAnswer) {
-    baseScore = isMeaninglessAnswer ? 0 : Math.min(3, Math.max(1, overlapCount));
+    baseScore = isMeaninglessAnswer
+      ? 0
+      : Math.min(3, Math.max(1, overlapCount));
   } else if (explainsCoreConceptClearly) {
     baseScore = 6;
     if (answerWordCount >= 18) baseScore += 1;
     if (hasMechanismSignal) baseScore += 1;
     if (hasExample) baseScore += 1;
-    if (missingTerms.length === 0 && (answerWordCount >= 28 || normalizedDifficulty === "hard")) {
+    if (
+      missingTerms.length === 0 &&
+      (answerWordCount >= 28 || normalizedDifficulty === "hard")
+    ) {
       baseScore += 1;
     }
   } else if (isPartiallyCorrect) {
@@ -733,7 +836,8 @@ const buildFallbackEvaluation = ({ question, answer, skill, difficulty, recentSc
   }
 
   let score = baseScore;
-  const recentPerformanceAdjustment = getRecentPerformanceAdjustment(recentScores);
+  const recentPerformanceAdjustment =
+    getRecentPerformanceAdjustment(recentScores);
 
   if (recentPerformanceAdjustment > 0 && explainsCoreConceptClearly) {
     score += 1;
@@ -741,7 +845,13 @@ const buildFallbackEvaluation = ({ question, answer, skill, difficulty, recentSc
     score -= 1;
   }
 
-  if (contradictsCoreConcept || isMeaninglessAnswer || isKeywordOnlyAnswer || !isConceptuallyCorrect || baseScore <= 3) {
+  if (
+    contradictsCoreConcept ||
+    isMeaninglessAnswer ||
+    isKeywordOnlyAnswer ||
+    !isConceptuallyCorrect ||
+    baseScore <= 3
+  ) {
     score = Math.min(score, 3);
   }
 
@@ -754,7 +864,10 @@ const buildFallbackEvaluation = ({ question, answer, skill, difficulty, recentSc
   }
 
   score = Math.max(0, Math.min(10, score));
-  const performanceAnalysis = analyzePerformanceHistory({ allScores, currentScore: score });
+  const performanceAnalysis = analyzePerformanceHistory({
+    allScores,
+    currentScore: score,
+  });
 
   let feedback = `The answer is unclear and does not explain ${missingConceptLabel}.`;
   if (contradictsCoreConcept) {
@@ -824,17 +937,25 @@ const buildFallbackEvaluation = ({ question, answer, skill, difficulty, recentSc
   });
 };
 
-const evaluateWithGemini = async ({ question, answer, skill, difficulty, recentScores = [], allScores = [] }) => {
-  const apiKey = (process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || "").trim();
+const evaluateWithGemini = async ({
+  question,
+  answer,
+  skill,
+  difficulty,
+  recentScores = [],
+  allScores = [],
+}) => {
+  const manager = getApiKeyManager();
 
-  if (!apiKey || apiKey === "your_gemini_api_key_here") {
+  if (!manager.apiKeys || manager.apiKeys.length === 0) {
     return null;
   }
 
-  const ai = new GoogleGenAI({ apiKey });
-  const response = await ai.models.generateContent({
-    model: GEMINI_MODEL,
-    contents: `
+  try {
+    const response = await manager.executeWithFallback(async (ai) => {
+      return await ai.models.generateContent({
+        model: GEMINI_MODEL,
+        contents: `
 You are an expert interviewer evaluating a candidate’s answer.
 
 ---
@@ -998,14 +1119,19 @@ IDEAL ANSWER RULES:
 
 Return ONLY JSON. No explanation.
 `,
-  });
+      });
+    });
 
-  const rawText = typeof response.text === "string" ? response.text : "";
-  if (!rawText) {
+    const rawText = typeof response.text === "string" ? response.text : "";
+    if (!rawText) {
+      return null;
+    }
+
+    return normalizeEvaluation(parseJsonPayload(rawText));
+  } catch (error) {
+    console.error("Evaluation error:", error?.message);
     return null;
   }
-
-  return normalizeEvaluation(parseJsonPayload(rawText));
 };
 
 const evaluateInterviewAnswer = async ({

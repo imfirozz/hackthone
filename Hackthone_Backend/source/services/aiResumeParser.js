@@ -1,9 +1,16 @@
 const GEMINI_MODEL = "gemini-2.5-flash";
+const { getApiKeyManager } = require("../config/apiKeyManager");
 const SKILL_KEYS = ["languages", "frameworks", "tools", "concepts"];
 const SECTION_LABEL_SOURCE =
   "(?:technical skills?|skills?|languages?|frontend|backend|frameworks?|libraries|tools?|concepts?|project technologies|technologies|tech stack)";
-const SECTION_LABEL_PATTERN = new RegExp(`\\b${SECTION_LABEL_SOURCE}\\s*:`, "gi");
-const MERGED_LABEL_PATTERN = new RegExp(`([^\\n])\\s+(${SECTION_LABEL_SOURCE}\\s*:)`, "gi");
+const SECTION_LABEL_PATTERN = new RegExp(
+  `\\b${SECTION_LABEL_SOURCE}\\s*:`,
+  "gi",
+);
+const MERGED_LABEL_PATTERN = new RegExp(
+  `([^\\n])\\s+(${SECTION_LABEL_SOURCE}\\s*:)`,
+  "gi",
+);
 const FRAGMENT_SPLIT_PATTERN =
   /\n|,|;|\||\t|\b(?:and|with|using|includes?|including)\b/gi;
 const SKILL_FRAGMENT_STOPWORDS = new Set([
@@ -34,7 +41,10 @@ const SKILL_FRAGMENT_STOPWORDS = new Set([
 const SKILL_CATALOG = {
   languages: [
     { name: "JavaScript", patterns: [/\bjavascript\b/gi] },
-    { name: "TypeScript", patterns: [/\btype\s*script\b/gi, /\btypescript\b/gi] },
+    {
+      name: "TypeScript",
+      patterns: [/\btype\s*script\b/gi, /\btypescript\b/gi],
+    },
     { name: "Python", patterns: [/\bpython\b/gi] },
     { name: "Java", patterns: [/\bjava\b/gi] },
     { name: "Rust", patterns: [/\brust\b/gi] },
@@ -50,7 +60,10 @@ const SKILL_CATALOG = {
     { name: "HTML", patterns: [/\bhtml(?:5)?\b/gi] },
     { name: "CSS", patterns: [/\bcss(?:3)?\b/gi] },
     { name: "React.js", patterns: [/\breact(?:\.js|js)?\b/gi] },
-    { name: "React Router", patterns: [/\breact router(?: dom)?\b/gi, /\breact-router(?:-dom)?\b/gi] },
+    {
+      name: "React Router",
+      patterns: [/\breact router(?: dom)?\b/gi, /\breact-router(?:-dom)?\b/gi],
+    },
     { name: "Next.js", patterns: [/\bnext(?:\.js|js)?\b/gi] },
     { name: "Node.js", patterns: [/\bnode(?:\.js|js)?\b/gi] },
     { name: "Express.js", patterns: [/\bexpress(?:\.js|js)?\b/gi] },
@@ -99,13 +112,22 @@ const SKILL_CATALOG = {
     { name: "Webpack", patterns: [/\bwebpack\b/gi] },
     { name: "Babel", patterns: [/\bbabel\b/gi] },
     { name: "Jira", patterns: [/\bjira\b/gi] },
-    { name: "VS Code", patterns: [/\bvs\.?\s*code\b/gi, /\bvisual studio code\b/gi] },
+    {
+      name: "VS Code",
+      patterns: [/\bvs\.?\s*code\b/gi, /\bvisual studio code\b/gi],
+    },
   ],
   concepts: [
     { name: "Data Structures", patterns: [/\bdata structures?\b/gi] },
     { name: "Algorithms", patterns: [/\balgorithms?\b/gi] },
-    { name: "OOP", patterns: [/\boop\b/gi, /\bobject[- ]oriented programming\b/gi] },
-    { name: "DBMS", patterns: [/\bdbms\b/gi, /\bdatabase management systems?\b/gi] },
+    {
+      name: "OOP",
+      patterns: [/\boop\b/gi, /\bobject[- ]oriented programming\b/gi],
+    },
+    {
+      name: "DBMS",
+      patterns: [/\bdbms\b/gi, /\bdatabase management systems?\b/gi],
+    },
     { name: "Operating Systems", patterns: [/\boperating systems?\b/gi] },
     { name: "Computer Networks", patterns: [/\bcomputer networks?\b/gi] },
     { name: "REST APIs", patterns: [/\brest(?:ful)?\s+apis?\b/gi] },
@@ -116,7 +138,10 @@ const SKILL_CATALOG = {
     { name: "Machine Learning", patterns: [/\bmachine learning\b/gi] },
     { name: "System Design", patterns: [/\bsystem design\b/gi] },
     { name: "Microservices", patterns: [/\bmicroservices?\b/gi] },
-    { name: "CI/CD", patterns: [/\bci\/cd\b/gi, /\bcontinuous integration\b/gi] },
+    {
+      name: "CI/CD",
+      patterns: [/\bci\/cd\b/gi, /\bcontinuous integration\b/gi],
+    },
     { name: "Authentication", patterns: [/\bauthentication\b/gi] },
     { name: "Authorization", patterns: [/\bauthorization\b/gi] },
     { name: "MVC", patterns: [/\bmvc\b/gi] },
@@ -175,7 +200,11 @@ const extractJsonPayload = (value = "") => {
   const firstBraceIndex = strippedValue.indexOf("{");
   const lastBraceIndex = strippedValue.lastIndexOf("}");
 
-  if (firstBraceIndex === -1 || lastBraceIndex === -1 || lastBraceIndex < firstBraceIndex) {
+  if (
+    firstBraceIndex === -1 ||
+    lastBraceIndex === -1 ||
+    lastBraceIndex < firstBraceIndex
+  ) {
     return strippedValue;
   }
 
@@ -197,7 +226,9 @@ const mergeSkillSets = (target, source) => {
 
 const skillSetsToObject = (skillSets) =>
   SKILL_KEYS.reduce((result, category) => {
-    result[category] = [...skillSets[category]].sort((a, b) => a.localeCompare(b));
+    result[category] = [...skillSets[category]].sort((a, b) =>
+      a.localeCompare(b),
+    );
     return result;
   }, createEmptySkillResult());
 
@@ -220,7 +251,9 @@ const buildPatternCandidates = (text) => {
   for (const category of SKILL_KEYS) {
     for (const entry of SKILL_CATALOG[category]) {
       for (const pattern of entry.patterns) {
-        const flags = pattern.flags.includes("g") ? pattern.flags : `${pattern.flags}g`;
+        const flags = pattern.flags.includes("g")
+          ? pattern.flags
+          : `${pattern.flags}g`;
         const regex = new RegExp(pattern.source, flags);
         let match = regex.exec(text);
 
@@ -251,9 +284,11 @@ const buildPatternCandidates = (text) => {
   });
 };
 
-const rangesOverlap = (left, right) => left.start < right.end && right.start < left.end;
+const rangesOverlap = (left, right) =>
+  left.start < right.end && right.start < left.end;
 
-const escapeRegex = (value = "") => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const escapeRegex = (value = "") =>
+  value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 const isLikelySkillListFragment = (fragment = "") => {
   const words = fragment
@@ -265,14 +300,19 @@ const isLikelySkillListFragment = (fragment = "") => {
     return false;
   }
 
-  return !words.some((word) => SKILL_FRAGMENT_STOPWORDS.has(word.toLowerCase()));
+  return !words.some((word) =>
+    SKILL_FRAGMENT_STOPWORDS.has(word.toLowerCase()),
+  );
 };
 
 const buildExactTokenCandidates = (text) => {
   const candidates = [];
 
   for (const [token, skill] of EXACT_TOKEN_SKILLS.entries()) {
-    const regex = new RegExp(`(^|[^A-Za-z0-9+#])(${escapeRegex(token)})(?=$|[^A-Za-z0-9+#])`, "gi");
+    const regex = new RegExp(
+      `(^|[^A-Za-z0-9+#])(${escapeRegex(token)})(?=$|[^A-Za-z0-9+#])`,
+      "gi",
+    );
     let match = regex.exec(text);
 
     while (match) {
@@ -311,7 +351,9 @@ const extractFragmentMatches = (fragment) => {
     return skillSets;
   }
 
-  const exactMatch = EXACT_TOKEN_SKILLS.get(normalizeForComparison(normalizedFragment));
+  const exactMatch = EXACT_TOKEN_SKILLS.get(
+    normalizeForComparison(normalizedFragment),
+  );
   if (exactMatch) {
     skillSets[exactMatch.category].add(exactMatch.name);
   }
@@ -370,7 +412,9 @@ const normalizeStructuredSkills = (data) => {
   const resultSets = createEmptySkillSets();
 
   for (const category of SKILL_KEYS) {
-    const values = Array.isArray(normalizedData[category]) ? normalizedData[category] : [];
+    const values = Array.isArray(normalizedData[category])
+      ? normalizedData[category]
+      : [];
 
     for (const value of values) {
       if (typeof value !== "string") {
@@ -397,7 +441,8 @@ const normalizeStructuredSkills = (data) => {
   return skillSetsToObject(resultSets);
 };
 
-const buildFallbackSkills = (text) => skillSetsToObject(extractCatalogMatches(text));
+const buildFallbackSkills = (text) =>
+  skillSetsToObject(extractCatalogMatches(text));
 
 const ensurePdfRuntimePolyfills = () => {
   if (globalThis.DOMMatrix && globalThis.ImageData && globalThis.Path2D) {
@@ -446,17 +491,17 @@ const getGoogleGenAI = () => {
 };
 
 const parseWithGemini = async (text) => {
-  const apiKey = (process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || "").trim();
+  const manager = getApiKeyManager();
 
-  if (!apiKey || apiKey === "your_gemini_api_key_here") {
+  if (!manager.apiKeys || manager.apiKeys.length === 0) {
     return null;
   }
 
-  const GoogleGenAI = getGoogleGenAI();
-  const ai = new GoogleGenAI({ apiKey });
-  const response = await ai.models.generateContent({
-    model: GEMINI_MODEL,
-    contents: `
+  try {
+    const response = await manager.executeWithFallback(async (ai) => {
+      return await ai.models.generateContent({
+        model: GEMINI_MODEL,
+        contents: `
 You are an expert resume parser.
 
 The input text may be messy due to PDF extraction errors.
@@ -513,14 +558,19 @@ IMPORTANT:
 TEXT:
 ${text}
 `,
-  });
+      });
+    });
 
-  const rawText = typeof response.text === "string" ? response.text : "";
-  if (!rawText) {
-    return null;
+    const rawText = typeof response.text === "string" ? response.text : "";
+    if (!rawText) {
+      return null;
+    }
+
+    return normalizeStructuredSkills(parseJsonPayload(rawText));
+  } catch (error) {
+    console.error("Resume parsing error:", error?.message);
+    throw error;
   }
-
-  return normalizeStructuredSkills(parseJsonPayload(rawText));
 };
 
 const parseResumeBuffer = async (fileBuffer) => {

@@ -1,4 +1,4 @@
-const { GoogleGenAI } = require("@google/genai");
+const { getApiKeyManager } = require("../config/apiKeyManager");
 const InterviewSessionRecord = require("../Models/InterviewSessionRecord");
 const {
   analyzeSkills,
@@ -124,7 +124,11 @@ const extractJsonPayload = (value = "") => {
   const firstBraceIndex = strippedValue.indexOf("{");
   const lastBraceIndex = strippedValue.lastIndexOf("}");
 
-  if (firstBraceIndex === -1 || lastBraceIndex === -1 || lastBraceIndex < firstBraceIndex) {
+  if (
+    firstBraceIndex === -1 ||
+    lastBraceIndex === -1 ||
+    lastBraceIndex < firstBraceIndex
+  ) {
     return strippedValue;
   }
 
@@ -139,7 +143,9 @@ const uniqueList = (values = []) =>
 
     if (
       normalizedValue &&
-      !items.some((item) => item.toLowerCase() === normalizedValue.toLowerCase())
+      !items.some(
+        (item) => item.toLowerCase() === normalizedValue.toLowerCase(),
+      )
     ) {
       items.push(normalizedValue);
     }
@@ -199,15 +205,23 @@ const normalizeIntent = (value = "") => {
     return "explain-concept";
   }
 
-  if (["improve", "improve-answer", "answer-improvement"].includes(normalizedValue)) {
+  if (
+    ["improve", "improve-answer", "answer-improvement"].includes(
+      normalizedValue,
+    )
+  ) {
     return "improve-answer";
   }
 
-  if (["feedback", "evaluate-answer", "answer-feedback"].includes(normalizedValue)) {
+  if (
+    ["feedback", "evaluate-answer", "answer-feedback"].includes(normalizedValue)
+  ) {
     return "answer-feedback";
   }
 
-  if (["weak-area", "weak-area-coaching", "coaching"].includes(normalizedValue)) {
+  if (
+    ["weak-area", "weak-area-coaching", "coaching"].includes(normalizedValue)
+  ) {
     return "weak-area-coaching";
   }
 
@@ -256,15 +270,31 @@ const isInterviewRelevantTopic = (value = "") => {
     return true;
   }
 
-  return TECHNICAL_TOPIC_PATTERNS.some((pattern) => pattern.test(normalizedValue));
+  return TECHNICAL_TOPIC_PATTERNS.some((pattern) =>
+    pattern.test(normalizedValue),
+  );
 };
 
-const isInterviewScopedRequest = ({ message = "", intent = "", question = "", answer = "", concept = "", focus = [], validSkills = [] }) => {
+const isInterviewScopedRequest = ({
+  message = "",
+  intent = "",
+  question = "",
+  answer = "",
+  concept = "",
+  focus = [],
+  validSkills = [],
+}) => {
   if (intent && intent !== "generate-question" && ALLOWED_INTENTS.has(intent)) {
     return true;
   }
 
-  if (question || answer || concept || validSkills.length > 0 || focus.length > 0) {
+  if (
+    question ||
+    answer ||
+    concept ||
+    validSkills.length > 0 ||
+    focus.length > 0
+  ) {
     return true;
   }
 
@@ -273,40 +303,73 @@ const isInterviewScopedRequest = ({ message = "", intent = "", question = "", an
     return false;
   }
 
-  return INTERVIEW_SCOPE_PATTERNS.some((pattern) => pattern.test(normalizedMessage));
+  return INTERVIEW_SCOPE_PATTERNS.some((pattern) =>
+    pattern.test(normalizedMessage),
+  );
 };
 
-const detectIntent = ({ message = "", question = "", answer = "", concept = "", focus = [] }) => {
+const detectIntent = ({
+  message = "",
+  question = "",
+  answer = "",
+  concept = "",
+  focus = [],
+}) => {
   const normalizedMessage = cleanText(message).toLowerCase();
 
   if (question && answer) {
     return "answer-feedback";
   }
 
-  if (answer && /\b(improve|rewrite|better answer|refine)\b/i.test(normalizedMessage)) {
+  if (
+    answer &&
+    /\b(improve|rewrite|better answer|refine)\b/i.test(normalizedMessage)
+  ) {
     return "improve-answer";
   }
 
-  if (concept || /\b(explain|difference|when would you use|trade-?off|why does)\b/i.test(normalizedMessage)) {
+  if (
+    concept ||
+    /\b(explain|difference|when would you use|trade-?off|why does)\b/i.test(
+      normalizedMessage,
+    )
+  ) {
     return "explain-concept";
   }
 
-  if (focus.length > 0 && /\b(weak|improve|coach|practice plan|struggling)\b/i.test(normalizedMessage)) {
+  if (
+    focus.length > 0 &&
+    /\b(weak|improve|coach|practice plan|struggling)\b/i.test(normalizedMessage)
+  ) {
     return "weak-area-coaching";
   }
 
-  if (/\b(feedback|score|evaluate|review)\b/i.test(normalizedMessage) && answer) {
+  if (
+    /\b(feedback|score|evaluate|review)\b/i.test(normalizedMessage) &&
+    answer
+  ) {
     return "answer-feedback";
   }
 
-  if (GENERAL_CHAT_PATTERNS.some((pattern) => pattern.test(normalizedMessage))) {
+  if (
+    GENERAL_CHAT_PATTERNS.some((pattern) => pattern.test(normalizedMessage))
+  ) {
     return "general_chat";
   }
 
   return "generate-question";
 };
 
-const detectConversationMode = ({ message = "", intent = "", chatMode = "", question = "", answer = "", concept = "", focus = [], validSkills = [] }) => {
+const detectConversationMode = ({
+  message = "",
+  intent = "",
+  chatMode = "",
+  question = "",
+  answer = "",
+  concept = "",
+  focus = [],
+  validSkills = [],
+}) => {
   if (chatMode === "interview") return "interview";
   if (chatMode === "profile") return "profile";
   if (chatMode === "general") return "general";
@@ -333,7 +396,17 @@ const detectConversationMode = ({ message = "", intent = "", chatMode = "", ques
     return "interview";
   }
 
-  if (isInterviewScopedRequest({ message, intent, question, answer, concept, focus, validSkills })) {
+  if (
+    isInterviewScopedRequest({
+      message,
+      intent,
+      question,
+      answer,
+      concept,
+      focus,
+      validSkills,
+    })
+  ) {
     return "interview";
   }
 
@@ -341,10 +414,18 @@ const detectConversationMode = ({ message = "", intent = "", chatMode = "", ques
 };
 
 const generateGeneralChatWithGemini = async ({ message, profile, user }) => {
-  const ai = getGeminiClient();
-  if (!ai) return null;
+  const manager = getApiKeyManager();
 
-  const userName = profile?.candidateName || (user ? cleanText(`${user.firstName || ""} ${user.lastName || ""}`.trim()) : "");
+  if (!manager.apiKeys || manager.apiKeys.length === 0) {
+    console.warn("No API keys configured for general chat");
+    return null;
+  }
+
+  const userName =
+    profile?.candidateName ||
+    (user
+      ? cleanText(`${user.firstName || ""} ${user.lastName || ""}`.trim())
+      : "");
   const greeting = userName ? `The user's name is ${userName}.` : "";
 
   const contents = `
@@ -385,9 +466,11 @@ Respond concisely. Use markdown. Keep it brief and clear.
 `;
 
   try {
-    const response = await ai.models.generateContent({
-      model: GEMINI_MODEL,
-      contents,
+    const response = await manager.executeWithFallback(async (ai) => {
+      return await ai.models.generateContent({
+        model: GEMINI_MODEL,
+        contents,
+      });
     });
     const rawText =
       typeof response.text === "string"
@@ -409,69 +492,90 @@ Respond concisely. Use markdown. Keep it brief and clear.
 const buildGeneralChatFallback = (message = "") => {
   const msg = cleanText(message).toLowerCase();
 
-  if (/^(hi|hello|hey|howdy|yo|sup|greetings)/i.test(msg) || /how are you/i.test(msg)) {
+  if (
+    /^(hi|hello|hey|howdy|yo|sup|greetings)/i.test(msg) ||
+    /how are you/i.test(msg)
+  ) {
     return {
-      reply: "Hey there! 👋 I'm your AI Mentor, ready to help with **coding**, **DSA**, **system design**, **career guidance**, and **interview prep**.\n\nJust ask me anything — like *\"explain closures in JS\"* or *\"how does React virtual DOM work?\"*",
+      reply:
+        'Hey there! 👋 I\'m your AI Mentor, ready to help with **coding**, **DSA**, **system design**, **career guidance**, and **interview prep**.\n\nJust ask me anything — like *"explain closures in JS"* or *"how does React virtual DOM work?"*',
     };
   }
 
   if (/\breact\b/i.test(msg)) {
     return {
-      reply: "**React** is a JavaScript library for building user interfaces using reusable components.\n\n**Key concepts:**\n- **Components** — reusable UI building blocks\n- **JSX** — HTML-like syntax in JavaScript\n- **Virtual DOM** — efficient UI updates by diffing\n- **Hooks** — `useState`, `useEffect` for state & side effects\n- **One-way data flow** — props flow parent → child\n\nWant me to dive deeper into any of these?",
+      reply:
+        "**React** is a JavaScript library for building user interfaces using reusable components.\n\n**Key concepts:**\n- **Components** — reusable UI building blocks\n- **JSX** — HTML-like syntax in JavaScript\n- **Virtual DOM** — efficient UI updates by diffing\n- **Hooks** — `useState`, `useEffect` for state & side effects\n- **One-way data flow** — props flow parent → child\n\nWant me to dive deeper into any of these?",
     };
   }
 
   if (/\b(javascript|js)\b/i.test(msg)) {
     return {
-      reply: "**JavaScript** is the language of the web — runs in browsers and on servers (Node.js).\n\n**Core topics:** closures, promises/async-await, prototypes, event loop, ES6+ features (arrow functions, destructuring, modules).\n\nWhat specific JS topic would you like me to explain?",
+      reply:
+        "**JavaScript** is the language of the web — runs in browsers and on servers (Node.js).\n\n**Core topics:** closures, promises/async-await, prototypes, event loop, ES6+ features (arrow functions, destructuring, modules).\n\nWhat specific JS topic would you like me to explain?",
     };
   }
 
-  if (/\b(data structure|dsa|algorithm|linked list|binary tree|hash map|sorting|array)\b/i.test(msg)) {
+  if (
+    /\b(data structure|dsa|algorithm|linked list|binary tree|hash map|sorting|array)\b/i.test(
+      msg,
+    )
+  ) {
     return {
-      reply: "**Data Structures & Algorithms** are fundamental to problem-solving and interviews.\n\n**Essential DS:** Arrays, Linked Lists, Stacks, Queues, Hash Maps, Trees, Graphs, Heaps\n\n**Key algorithms:** Binary Search, BFS/DFS, Sorting (Quick, Merge), Dynamic Programming, Two Pointers, Sliding Window\n\nWhich topic would you like to explore?",
+      reply:
+        "**Data Structures & Algorithms** are fundamental to problem-solving and interviews.\n\n**Essential DS:** Arrays, Linked Lists, Stacks, Queues, Hash Maps, Trees, Graphs, Heaps\n\n**Key algorithms:** Binary Search, BFS/DFS, Sorting (Quick, Merge), Dynamic Programming, Two Pointers, Sliding Window\n\nWhich topic would you like to explore?",
     };
   }
 
-  if (/\b(system design|scalab|architect|microservice|load balanc)\b/i.test(msg)) {
+  if (
+    /\b(system design|scalab|architect|microservice|load balanc)\b/i.test(msg)
+  ) {
     return {
-      reply: "**System Design** is about building scalable, reliable systems.\n\n**Key concepts:** Load balancing, caching (Redis), databases (SQL vs NoSQL), message queues, CDN, horizontal scaling, API gateway, microservices.\n\nWant me to walk through a specific system design problem?",
+      reply:
+        "**System Design** is about building scalable, reliable systems.\n\n**Key concepts:** Load balancing, caching (Redis), databases (SQL vs NoSQL), message queues, CDN, horizontal scaling, API gateway, microservices.\n\nWant me to walk through a specific system design problem?",
     };
   }
 
   if (/\b(career|job|salary|resume|placement|hire|switch)\b/i.test(msg)) {
     return {
-      reply: "For **career guidance**, here are key areas to focus on:\n\n- **Build projects** that solve real problems\n- **Master DSA** — most interviews test this\n- **Practice system design** for senior roles\n- **Contribute to open source** for visibility\n- **Network** on LinkedIn and attend tech events\n\nWhat specific career question do you have?",
+      reply:
+        "For **career guidance**, here are key areas to focus on:\n\n- **Build projects** that solve real problems\n- **Master DSA** — most interviews test this\n- **Practice system design** for senior roles\n- **Contribute to open source** for visibility\n- **Network** on LinkedIn and attend tech events\n\nWhat specific career question do you have?",
     };
   }
 
   if (/\b(debug|fix|error|bug|not working|issue)\b/i.test(msg)) {
     return {
-      reply: "For **debugging**, try this systematic approach:\n\n1. **Read the error message** carefully — it usually tells you the file and line\n2. **Check the console/logs** for stack traces\n3. **Isolate the problem** — comment out code to find the breaking point\n4. **Google the error** — Stack Overflow usually has answers\n5. **Use breakpoints** instead of console.log\n\nPaste your specific error and I'll help you debug it!",
+      reply:
+        "For **debugging**, try this systematic approach:\n\n1. **Read the error message** carefully — it usually tells you the file and line\n2. **Check the console/logs** for stack traces\n3. **Isolate the problem** — comment out code to find the breaking point\n4. **Google the error** — Stack Overflow usually has answers\n5. **Use breakpoints** instead of console.log\n\nPaste your specific error and I'll help you debug it!",
     };
   }
 
   if (/\b(node|express|backend|api|rest|server)\b/i.test(msg)) {
     return {
-      reply: "**Node.js + Express** is the most popular backend stack for JavaScript developers.\n\n**Key topics:** REST APIs, middleware, routing, authentication (JWT), database (MongoDB/PostgreSQL), error handling, deployment.\n\nWhat backend topic do you want to learn about?",
+      reply:
+        "**Node.js + Express** is the most popular backend stack for JavaScript developers.\n\n**Key topics:** REST APIs, middleware, routing, authentication (JWT), database (MongoDB/PostgreSQL), error handling, deployment.\n\nWhat backend topic do you want to learn about?",
     };
   }
 
   if (/\b(css|html|frontend|tailwind|style|responsive)\b/i.test(msg)) {
     return {
-      reply: "**Frontend fundamentals:**\n\n- **HTML** — semantic tags, accessibility\n- **CSS** — Flexbox, Grid, responsive design, animations\n- **Tailwind** — utility-first CSS framework\n- **Responsive** — media queries, mobile-first approach\n\nWhich frontend topic interests you?",
+      reply:
+        "**Frontend fundamentals:**\n\n- **HTML** — semantic tags, accessibility\n- **CSS** — Flexbox, Grid, responsive design, animations\n- **Tailwind** — utility-first CSS framework\n- **Responsive** — media queries, mobile-first approach\n\nWhich frontend topic interests you?",
     };
   }
 
   if (/\b(python|java|c\+\+|golang|rust|typescript)\b/i.test(msg)) {
-    const lang = msg.match(/\b(python|java|c\+\+|golang|rust|typescript)\b/i)?.[1] || "that language";
+    const lang =
+      msg.match(/\b(python|java|c\+\+|golang|rust|typescript)\b/i)?.[1] ||
+      "that language";
     return {
       reply: `Great choice! **${lang}** is widely used in the industry.\n\nI can help you with:\n- Core concepts and syntax\n- Common interview questions\n- Best practices and patterns\n- Project ideas\n\nWhat would you like to know about ${lang}?`,
     };
   }
 
   return {
-    reply: "I'm your AI Mentor! I can help with:\n\n- 💻 **Coding** — any language, any concept\n- 📊 **DSA** — data structures and algorithms\n- 🏗️ **System Design** — scalable architectures\n- 🎯 **Interview Prep** — mock interviews and feedback\n- 🚀 **Career** — guidance, roadmaps, resume tips\n\nJust ask me anything!",
+    reply:
+      "I'm your AI Mentor! I can help with:\n\n- 💻 **Coding** — any language, any concept\n- 📊 **DSA** — data structures and algorithms\n- 🏗️ **System Design** — scalable architectures\n- 🎯 **Interview Prep** — mock interviews and feedback\n- 🚀 **Career** — guidance, roadmaps, resume tips\n\nJust ask me anything!",
   };
 };
 
@@ -506,7 +610,12 @@ const buildNoHistoryPrompt = () => ({
   ],
 });
 
-const buildFallbackExplanation = ({ topic, interviewType, difficulty, profile }) => {
+const buildFallbackExplanation = ({
+  topic,
+  interviewType,
+  difficulty,
+  profile,
+}) => {
   const focusNote =
     profile?.weakAreas?.length > 0
       ? ` Pay extra attention to ${profile.weakAreas.slice(0, 2).join(" and ")} because those are currently weaker areas.`
@@ -543,14 +652,21 @@ const buildFallbackAnswerImprovement = ({ answer, skill, question }) => {
     ],
     improvementTips: normalizePracticeGuidance([
       question ? `Anchor every sentence back to the question: ${question}` : "",
-      skill ? `Use one technical detail that proves real familiarity with ${skill}` : "",
+      skill
+        ? `Use one technical detail that proves real familiarity with ${skill}`
+        : "",
       "Replace broad claims with a concrete example or trade-off.",
     ]),
   };
 };
 
-const buildFallbackWeakAreaCoaching = ({ weakAreas = [], profile, practiceQuestion }) => {
-  const targetAreas = weakAreas.length > 0 ? weakAreas : profile?.weakAreas || [];
+const buildFallbackWeakAreaCoaching = ({
+  weakAreas = [],
+  profile,
+  practiceQuestion,
+}) => {
+  const targetAreas =
+    weakAreas.length > 0 ? weakAreas : profile?.weakAreas || [];
   const firstArea = targetAreas[0] || "Technical Depth";
 
   return {
@@ -572,12 +688,20 @@ const buildFallbackWeakAreaCoaching = ({ weakAreas = [], profile, practiceQuesti
 };
 
 const buildProfileSummary = (profile = {}) => ({
-  resumeSkills: Array.isArray(profile.resumeSkills) ? profile.resumeSkills.slice(0, 12) : [],
+  resumeSkills: Array.isArray(profile.resumeSkills)
+    ? profile.resumeSkills.slice(0, 12)
+    : [],
   weakAreas: Array.isArray(profile.weakAreas) ? profile.weakAreas : [],
   strongAreas: Array.isArray(profile.strongAreas) ? profile.strongAreas : [],
-  failedConcepts: Array.isArray(profile.failedConcepts) ? profile.failedConcepts : [],
-  averageScore: Number.isFinite(profile.averageScore) ? profile.averageScore : null,
-  interviewCount: Number.isFinite(profile.interviewCount) ? profile.interviewCount : 0,
+  failedConcepts: Array.isArray(profile.failedConcepts)
+    ? profile.failedConcepts
+    : [],
+  averageScore: Number.isFinite(profile.averageScore)
+    ? profile.averageScore
+    : null,
+  interviewCount: Number.isFinite(profile.interviewCount)
+    ? profile.interviewCount
+    : 0,
   consistency: cleanText(profile.consistency) || "limited",
   preferredRole: cleanText(profile.preferredRole),
   preferredMode: cleanText(profile.preferredMode),
@@ -590,10 +714,19 @@ const normalizeMentorPayload = (value = {}) => {
   const question = cleanText(value?.question);
   const answer = cleanText(value?.answer);
   const company = cleanText(value?.company);
-  const difficulty = normalizeDifficulty(value?.difficulty || value?.level || value?.difficultyLevel);
-  const interviewType = normalizeInterviewType(value?.interviewType || value?.round || value?.interviewRound);
-  const domain = cleanText(value?.domain || value?.role || value?.preferredRole).toLowerCase() || "general";
-  const focus = normalizeFocusAreas(value?.focus || value?.focusAreas || value?.weakAreas || value?.topics);
+  const difficulty = normalizeDifficulty(
+    value?.difficulty || value?.level || value?.difficultyLevel,
+  );
+  const interviewType = normalizeInterviewType(
+    value?.interviewType || value?.round || value?.interviewRound,
+  );
+  const domain =
+    cleanText(
+      value?.domain || value?.role || value?.preferredRole,
+    ).toLowerCase() || "general";
+  const focus = normalizeFocusAreas(
+    value?.focus || value?.focusAreas || value?.weakAreas || value?.topics,
+  );
   const explicitSkill = cleanText(value?.skill || value?.technology);
   const skillAnalysis = analyzeSkills(
     value?.skills ||
@@ -636,7 +769,9 @@ const deriveConsistency = (records = [], candidate = null) => {
     return "limited";
   }
 
-  const scores = records.map((record) => Number(record.score)).filter(Number.isFinite);
+  const scores = records
+    .map((record) => Number(record.score))
+    .filter(Number.isFinite);
   if (scores.length < 2) {
     return "limited";
   }
@@ -722,7 +857,9 @@ const buildPersonalizedProfile = async (user) => {
     })),
     latestFeedback: cleanText(candidateSummary?.latestFeedback),
     nextStep: cleanText(candidateSummary?.nextStep),
-    preferredRole: cleanText(user?.preferences?.defaultRoleFilter || candidateSummary?.role),
+    preferredRole: cleanText(
+      user?.preferences?.defaultRoleFilter || candidateSummary?.role,
+    ),
     preferredMode: cleanText(user?.preferences?.preferredInterviewMode),
     consistency: deriveConsistency(records, candidateSummary),
     recentDifficultyTrend: deriveDifficultyTrend(persistedSessions),
@@ -757,7 +894,9 @@ const buildQuestionPayload = ({ normalizedBody, profile }) => {
   const validSkills =
     normalizedBody.skillAnalysis.validSkills.length > 0
       ? normalizedBody.skillAnalysis.validSkills
-      : profile.resumeSkills.filter((value) => analyzeSkills([value]).validSkills.length > 0);
+      : profile.resumeSkills.filter(
+          (value) => analyzeSkills([value]).validSkills.length > 0,
+        );
   const focus = uniqueList([
     ...normalizedBody.focus.filter((value) => isInterviewRelevantTopic(value)),
     ...(profile.failedConcepts || []),
@@ -770,19 +909,24 @@ const buildQuestionPayload = ({ normalizedBody, profile }) => {
 };
 
 const getGeminiClient = () => {
-  const apiKey = (process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || "").trim();
+  const manager = getApiKeyManager();
 
-  if (!apiKey || apiKey === "your_gemini_api_key_here") {
+  if (!manager.apiKeys || manager.apiKeys.length === 0) {
     return null;
   }
 
-  return new GoogleGenAI({ apiKey });
+  return manager.getClient();
 };
 
-const generateMentorWithGemini = async ({ intent, normalizedBody, profile, mode }) => {
-  const ai = getGeminiClient();
+const generateMentorWithGemini = async ({
+  intent,
+  normalizedBody,
+  profile,
+  mode,
+}) => {
+  const manager = getApiKeyManager();
 
-  if (!ai) {
+  if (!manager.apiKeys || manager.apiKeys.length === 0) {
     return null;
   }
 
@@ -843,28 +987,37 @@ Return ONLY valid JSON in this format:
 }
 `;
 
-  const response = await ai.models.generateContent({
-    model: GEMINI_MODEL,
-    contents,
-  });
-  const rawText = typeof response.text === "string" ? response.text : "";
+  try {
+    const response = await manager.executeWithFallback(async (ai) => {
+      return await ai.models.generateContent({
+        model: GEMINI_MODEL,
+        contents,
+      });
+    });
+    const rawText = typeof response.text === "string" ? response.text : "";
 
-  if (!rawText) {
+    if (!rawText) {
+      return null;
+    }
+
+    const parsedValue = parseJsonPayload(rawText);
+    return {
+      reply: toSentence(parsedValue?.reply),
+      question: cleanText(parsedValue?.question),
+      topic: cleanText(parsedValue?.topic),
+      explanation: toSentence(parsedValue?.explanation),
+      practicalExample: toSentence(parsedValue?.practicalExample),
+      followUpQuestion: cleanText(parsedValue?.followUpQuestion),
+      improvedAnswer: cleanText(parsedValue?.improvedAnswer),
+      practiceGuidance: normalizePracticeGuidance(
+        parsedValue?.practiceGuidance,
+      ),
+      improvementTips: normalizePracticeGuidance(parsedValue?.improvementTips),
+    };
+  } catch (error) {
+    console.error("Mentor generation error:", error?.message);
     return null;
   }
-
-  const parsedValue = parseJsonPayload(rawText);
-  return {
-    reply: toSentence(parsedValue?.reply),
-    question: cleanText(parsedValue?.question),
-    topic: cleanText(parsedValue?.topic),
-    explanation: toSentence(parsedValue?.explanation),
-    practicalExample: toSentence(parsedValue?.practicalExample),
-    followUpQuestion: cleanText(parsedValue?.followUpQuestion),
-    improvedAnswer: cleanText(parsedValue?.improvedAnswer),
-    practiceGuidance: normalizePracticeGuidance(parsedValue?.practiceGuidance),
-    improvementTips: normalizePracticeGuidance(parsedValue?.improvementTips),
-  };
 };
 
 const buildGuestMentorResponse = ({ normalizedBody, intent }) => {
@@ -975,7 +1128,10 @@ const createExplanationResponse = async ({ normalizedBody, profile, mode }) => {
     profile.failedConcepts[0] ||
     profile.resumeSkills[0];
 
-  if (!isInterviewRelevantTopic(topic) && normalizedBody.interviewType !== "hr") {
+  if (
+    !isInterviewRelevantTopic(topic) &&
+    normalizedBody.interviewType !== "hr"
+  ) {
     return {
       mentor: "fallback",
       data: buildGuestModePrompt(normalizedBody.skillAnalysis.invalidSkills),
@@ -1005,14 +1161,21 @@ const createExplanationResponse = async ({ normalizedBody, profile, mode }) => {
   };
 };
 
-const createAnswerImprovementResponse = async ({ normalizedBody, profile, mode }) => {
+const createAnswerImprovementResponse = async ({
+  normalizedBody,
+  profile,
+  mode,
+}) => {
   if (!normalizedBody.answer) {
     return {
       mentor: "fallback",
       data: {
         needsInput: true,
-        reply: "Send the answer you want to improve, and I will tighten it without changing its meaning.",
-        practiceGuidance: ["Include the original answer, and optionally include the interview question."],
+        reply:
+          "Send the answer you want to improve, and I will tighten it without changing its meaning.",
+        practiceGuidance: [
+          "Include the original answer, and optionally include the interview question.",
+        ],
       },
     };
   }
@@ -1036,8 +1199,11 @@ const createAnswerFeedbackResponse = async ({ normalizedBody, profile }) => {
       mentor: "fallback",
       data: {
         needsInput: true,
-        reply: "Send both the interview question and your answer so I can review it realistically.",
-        practiceGuidance: ["Include question, answer, skill if known, and difficulty if known."],
+        reply:
+          "Send both the interview question and your answer so I can review it realistically.",
+        practiceGuidance: [
+          "Include question, answer, skill if known, and difficulty if known.",
+        ],
       },
     };
   }
@@ -1075,14 +1241,20 @@ const createAnswerFeedbackResponse = async ({ normalizedBody, profile }) => {
       },
       improvementTips: normalizePracticeGuidance([
         review.improvement,
-        review.idealAnswer ? "Re-answer once using the ideal answer structure, but keep your own wording." : "",
+        review.idealAnswer
+          ? "Re-answer once using the ideal answer structure, but keep your own wording."
+          : "",
         profile.nextStep || "",
       ]),
     },
   };
 };
 
-const createWeakAreaCoachingResponse = async ({ normalizedBody, profile, mode }) => {
+const createWeakAreaCoachingResponse = async ({
+  normalizedBody,
+  profile,
+  mode,
+}) => {
   const weakAreas = uniqueList([
     ...normalizedBody.focus,
     ...profile.weakAreas,
@@ -1097,7 +1269,9 @@ const createWeakAreaCoachingResponse = async ({ normalizedBody, profile, mode })
           skills:
             normalizedBody.skillAnalysis.validSkills.length > 0
               ? normalizedBody.skillAnalysis.validSkills
-              : profile.resumeSkills.filter((value) => analyzeSkills([value]).validSkills.length > 0),
+              : profile.resumeSkills.filter(
+                  (value) => analyzeSkills([value]).validSkills.length > 0,
+                ),
           difficulty: normalizedBody.difficulty,
           focus: weakAreas.slice(0, 2),
           domain: normalizedBody.domain || profile.preferredRole || "general",
@@ -1123,8 +1297,13 @@ const createWeakAreaCoachingResponse = async ({ normalizedBody, profile, mode })
       mentor: "gemini",
       data: {
         ...aiResponse,
-        question: aiResponse.question || practiceQuestion?.question.question || "",
-        topic: aiResponse.topic || practiceQuestion?.question.topic || weakAreas[0] || "",
+        question:
+          aiResponse.question || practiceQuestion?.question.question || "",
+        topic:
+          aiResponse.topic ||
+          practiceQuestion?.question.topic ||
+          weakAreas[0] ||
+          "",
       },
     };
   }
@@ -1151,7 +1330,9 @@ const createInterviewMentorResponse = async ({ body = {}, user = null }) => {
       focus: normalizedBody.focus,
     });
 
-  const chatMode = cleanText(body?.chatMode || body?.conversationMode).toLowerCase();
+  const chatMode = cleanText(
+    body?.chatMode || body?.conversationMode,
+  ).toLowerCase();
   const conversationMode = detectConversationMode({
     message: normalizedBody.message,
     intent,
@@ -1172,7 +1353,8 @@ const createInterviewMentorResponse = async ({ body = {}, user = null }) => {
         conversationMode: "profile",
         profile: buildProfileSummary(buildGuestProfile()),
         data: {
-          reply: "To access your profile data, resume skills, and personalized coaching, you need to **sign in** first and **upload your resume**.\n\nOnce logged in, I can:\n- Show your resume skills\n- Identify your weak areas\n- Give personalized interview questions\n- Track your progress",
+          reply:
+            "To access your profile data, resume skills, and personalized coaching, you need to **sign in** first and **upload your resume**.\n\nOnce logged in, I can:\n- Show your resume skills\n- Identify your weak areas\n- Give personalized interview questions\n- Track your progress",
           practiceGuidance: [
             "Sign in using the top-right login button.",
             "Upload your resume from the dashboard.",
@@ -1183,7 +1365,10 @@ const createInterviewMentorResponse = async ({ body = {}, user = null }) => {
     }
 
     const profileData = await buildPersonalizedProfile(user);
-    if (profileData.resumeSkills.length === 0 && profileData.interviewCount === 0) {
+    if (
+      profileData.resumeSkills.length === 0 &&
+      profileData.interviewCount === 0
+    ) {
       return {
         mentor: "fallback",
         mode: "personalized",
@@ -1191,7 +1376,8 @@ const createInterviewMentorResponse = async ({ body = {}, user = null }) => {
         conversationMode: "profile",
         profile: buildProfileSummary(profileData),
         data: {
-          reply: "You are logged in, but I don't have your resume data yet. **Upload your resume** from the dashboard so I can analyze your skills and give personalized guidance.",
+          reply:
+            "You are logged in, but I don't have your resume data yet. **Upload your resume** from the dashboard so I can analyze your skills and give personalized guidance.",
           practiceGuidance: [
             "Go to Dashboard → Upload Resume.",
             "I will extract your skills, frameworks, and tools.",
@@ -1205,7 +1391,9 @@ const createInterviewMentorResponse = async ({ body = {}, user = null }) => {
   if (conversationMode === "general") {
     const userMessage = normalizedBody.message || "Hello";
     const guestProfile = buildGuestProfile();
-    const profileForChat = user ? await buildPersonalizedProfile(user) : guestProfile;
+    const profileForChat = user
+      ? await buildPersonalizedProfile(user)
+      : guestProfile;
     const aiResponse = await generateGeneralChatWithGemini({
       message: userMessage,
       profile: profileForChat,
@@ -1224,7 +1412,9 @@ const createInterviewMentorResponse = async ({ body = {}, user = null }) => {
     };
   }
 
-  const profile = user ? await buildPersonalizedProfile(user) : buildGuestProfile();
+  const profile = user
+    ? await buildPersonalizedProfile(user)
+    : buildGuestProfile();
   const mode = user ? "personalized" : "guest";
 
   if (!user) {
@@ -1243,7 +1433,10 @@ const createInterviewMentorResponse = async ({ body = {}, user = null }) => {
   let mentor = "fallback";
 
   if (intent === "answer-feedback") {
-    const feedbackResponse = await createAnswerFeedbackResponse({ normalizedBody, profile });
+    const feedbackResponse = await createAnswerFeedbackResponse({
+      normalizedBody,
+      profile,
+    });
     mentor = feedbackResponse.mentor;
     data = feedbackResponse.data;
   } else if (intent === "improve-answer") {
@@ -1255,15 +1448,27 @@ const createInterviewMentorResponse = async ({ body = {}, user = null }) => {
     mentor = improvementResponse.mentor;
     data = improvementResponse.data;
   } else if (intent === "explain-concept") {
-    const explanationResponse = await createExplanationResponse({ normalizedBody, profile, mode });
+    const explanationResponse = await createExplanationResponse({
+      normalizedBody,
+      profile,
+      mode,
+    });
     mentor = explanationResponse.mentor;
     data = explanationResponse.data;
   } else if (intent === "weak-area-coaching") {
-    const coachingResponse = await createWeakAreaCoachingResponse({ normalizedBody, profile, mode });
+    const coachingResponse = await createWeakAreaCoachingResponse({
+      normalizedBody,
+      profile,
+      mode,
+    });
     mentor = coachingResponse.mentor;
     data = coachingResponse.data;
   } else {
-    const questionResponse = await createQuestionResponse({ normalizedBody, profile, mode });
+    const questionResponse = await createQuestionResponse({
+      normalizedBody,
+      profile,
+      mode,
+    });
     mentor = questionResponse.mentor;
     data = questionResponse.data;
   }

@@ -101,10 +101,23 @@ body {
   opacity: 0.98;
 }
 
+.app-spline-viewer spline-viewer {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
 .app-spline-viewer::part(logo),
 .app-spline-viewer::part(watermark),
 .app-spline-viewer::part(badge),
 .app-spline-viewer::part(branding) {
+  display: none !important;
+}
+
+.app-spline-viewer spline-viewer::part(logo),
+.app-spline-viewer spline-viewer::part(watermark),
+.app-spline-viewer spline-viewer::part(badge),
+.app-spline-viewer spline-viewer::part(branding) {
   display: none !important;
 }
 
@@ -1024,11 +1037,51 @@ body {
   50% { opacity: 0.4; }
 }
 .arena-spline-viewer {
-  display: block;
+  display: flex;
+  position: relative;
   flex: 1;
   width: 100%;
   min-height: 260px;
+  overflow: hidden;
+  align-items: center;
+  justify-content: center;
+  background:
+    radial-gradient(circle at 50% 50%, rgba(59, 130, 246, 0.08), transparent 60%),
+    radial-gradient(circle at 30% 30%, rgba(249, 115, 22, 0.06), transparent 50%);
+}
+
+.arena-spline-viewer spline-viewer {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 260px;
+}
+
+.arena-orb-image {
+  position: relative;
+  z-index: 2;
+  width: clamp(200px, 50%, 380px);
+  height: auto;
+  object-fit: contain;
+  border-radius: 50%;
+  filter: brightness(1.05) saturate(1.15) drop-shadow(0 0 40px rgba(59, 130, 246, 0.35)) drop-shadow(0 0 80px rgba(249, 115, 22, 0.2));
+  animation: orb-float 4s ease-in-out infinite, orb-glow 3s ease-in-out infinite alternate;
   pointer-events: none;
+  user-select: none;
+}
+
+@keyframes orb-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-12px); }
+}
+
+@keyframes orb-glow {
+  0% {
+    filter: brightness(1.05) saturate(1.15) drop-shadow(0 0 40px rgba(59, 130, 246, 0.35)) drop-shadow(0 0 80px rgba(249, 115, 22, 0.2));
+  }
+  100% {
+    filter: brightness(1.15) saturate(1.25) drop-shadow(0 0 60px rgba(59, 130, 246, 0.5)) drop-shadow(0 0 100px rgba(249, 115, 22, 0.35));
+  }
 }
 .arena-spline-footer {
   display: flex;
@@ -1417,6 +1470,13 @@ body {
 .arena-spline-viewer::part(watermark),
 .arena-spline-viewer::part(badge),
 .arena-spline-viewer::part(branding) {
+  display: none !important;
+}
+
+.arena-spline-viewer spline-viewer::part(logo),
+.arena-spline-viewer spline-viewer::part(watermark),
+.arena-spline-viewer spline-viewer::part(badge),
+.arena-spline-viewer spline-viewer::part(branding) {
   display: none !important;
 }
 .arena-spline-frame::after {
