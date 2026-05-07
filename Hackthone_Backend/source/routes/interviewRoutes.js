@@ -437,6 +437,7 @@ const handleInterviewMentor = async (req, res) => {
       mentor: result.mentor,
       mode: result.mode,
       intent: result.intent,
+      conversationMode: result.conversationMode || "interview",
       profile: result.profile,
       data: result.data,
     });

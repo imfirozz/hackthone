@@ -112,6 +112,12 @@ function formatIntentLabel(value = "") {
   return labelMap[value] || toTitleCase(value.replace(/-/g, " "));
 }
 
+const CONVERSATION_MODE_LABELS = {
+  general: { label: "General AI", icon: "🤖", tone: "primary" },
+  interview: { label: "Interview", icon: "🎯", tone: "warning" },
+  profile: { label: "Profile", icon: "👤", tone: "success" },
+};
+
 function formatMentorSource(value = "") {
   if (!value) {
     return "";
@@ -1065,12 +1071,18 @@ function MessageBubble({ message, isStreaming = false, onStreamComplete }) {
 
         {!isUser && !message.isError ? (
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {meta.conversationMode && CONVERSATION_MODE_LABELS[meta.conversationMode] ? (
+              <ToolBadge tone={CONVERSATION_MODE_LABELS[meta.conversationMode].tone}>
+                {CONVERSATION_MODE_LABELS[meta.conversationMode].icon}{" "}
+                {CONVERSATION_MODE_LABELS[meta.conversationMode].label}
+              </ToolBadge>
+            ) : null}
             {meta.mode ? (
               <ToolBadge tone={meta.mode === "personalized" ? "success" : "default"}>
                 {meta.mode === "personalized" ? "Personalized" : "Guest"}
               </ToolBadge>
             ) : null}
-            {meta.intent ? (
+            {meta.intent && meta.intent !== "general_chat" ? (
               <ToolBadge tone="primary">{formatIntentLabel(meta.intent)}</ToolBadge>
             ) : null}
             {meta.mentor ? (
@@ -1802,6 +1814,7 @@ export default function ChatBotIcon() {
         intent: response?.intent || "",
         mentor: response?.mentor || "",
         profile: response?.profile || null,
+        conversationMode: response?.conversationMode || "interview",
       },
     };
 

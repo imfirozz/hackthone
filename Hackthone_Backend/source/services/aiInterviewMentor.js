@@ -20,7 +20,36 @@ const ALLOWED_INTENTS = new Set([
   "improve-answer",
   "answer-feedback",
   "weak-area-coaching",
+  "general_chat",
 ]);
+
+const GENERAL_CHAT_PATTERNS = [
+  /^(hi|hello|hey|howdy|greetings|yo|sup|what'?s up)/i,
+  /\bhow are you\b/i,
+  /\bwho are you\b/i,
+  /\bwhat can you do\b/i,
+  /\bhelp me\b/i,
+  /\bthank(s| you)\b/i,
+  /\b(write|create|build|make) (a |an |the )?(function|program|script|code|app|component|class)\b/i,
+  /\b(solve|solution|approach) (this|the|a)? ?(problem|challenge|task)\b/i,
+  /\b(what is|what are|define|meaning of|difference between)\b/i,
+  /\b(how to|how do|how does|how can|can you)\b/i,
+  /\b(debug|fix|error|bug|issue|not working)\b/i,
+  /\b(roadmap|learning path|learn|study|resources)\b/i,
+  /\b(career|job|salary|company|placement|hire)\b/i,
+  /\b(best practice|pattern|architecture|design pattern)\b/i,
+  /\b(compare|vs|versus|or)\b.*\b(which|better|prefer)\b/i,
+  /\b(time complexity|space complexity|big o|o\()\b/i,
+  /\b(linked list|binary tree|hash map|stack|queue|graph|heap|trie|array|sorting|searching)\b/i,
+  /\b(docker|kubernetes|aws|cloud|devops|ci\/cd|git|linux)\b/i,
+];
+
+const PROFILE_TRIGGER_PATTERNS = [
+  /\b(my resume|my profile|my skills|my history|from my)\b/i,
+  /\b(personali[sz]ed|based on me|use my|about me)\b/i,
+  /\b(my weak|my strong|my score|my performance|my analytics)\b/i,
+  /\b(my interview|my past|my previous|my recent)\b/i,
+];
 
 const TECHNICAL_TOPIC_PATTERNS = [
   /\breact(?:\.js)?\b/i,
@@ -271,6 +300,86 @@ const detectIntent = ({ message = "", question = "", answer = "", concept = "", 
   }
 
   return "generate-question";
+};
+
+const detectConversationMode = ({ message = "", intent = "", chatMode = "", question = "", answer = "", concept = "", focus = [], validSkills = [] }) => {
+  if (chatMode === "interview") return "interview";
+  if (chatMode === "profile") return "profile";
+  if (chatMode === "general") return "general";
+
+  const normalizedMessage = cleanText(message);
+
+  if (PROFILE_TRIGGER_PATTERNS.some((p) => p.test(normalizedMessage))) {
+    return "profile";
+  }
+
+  if (intent && intent !== "general_chat" && ALLOWED_INTENTS.has(intent)) {
+    return "interview";
+  }
+
+  if (question && answer) return "interview";
+  if (concept && validSkills.length > 0) return "interview";
+  if (focus.length > 0 && validSkills.length > 0) return "interview";
+
+  if (isInterviewScopedRequest({ message, intent, question, answer, concept, focus, validSkills })) {
+    return "interview";
+  }
+
+  return "general";
+};
+
+const generateGeneralChatWithGemini = async ({ message, profile, user }) => {
+  const ai = getGeminiClient();
+  if (!ai) return null;
+
+  const userName = profile?.candidateName || (user ? cleanText(`${user.firstName || ""} ${user.lastName || ""}`.trim()) : "");
+  const greeting = userName ? `The user's name is ${userName}.` : "";
+
+  const contents = `
+You are an intelligent, friendly, and highly knowledgeable AI assistant called "AI Mentor".
+You help with ALL types of conversations and questions.
+
+${greeting}
+
+You can help with:
+- Coding and programming in any language
+- Data Structures and Algorithms (DSA)
+- System Design and Architecture
+- Debugging and error fixing
+- Career guidance and job advice
+- Learning roadmaps and study plans
+- Frontend/Backend/DevOps concepts
+- Communication and soft skills
+- General knowledge and explanations
+- Writing code, functions, components
+- Comparing technologies
+- Best practices and design patterns
+- Any general conversation
+
+RULES:
+- Be conversational, warm, and helpful
+- Give practical, actionable answers
+- Use code examples when relevant
+- Use markdown formatting (headers, code blocks, bold, lists)
+- Do NOT force interview context unless the user asks about interviews
+- Be concise but thorough
+
+User message: ${message}
+
+Respond naturally. Use markdown formatting. If the user asks a coding question, include code examples in code blocks with the language specified.
+`;
+
+  try {
+    const response = await ai.models.generateContent({
+      model: GEMINI_MODEL,
+      contents,
+    });
+    const rawText = typeof response.text === "string" ? response.text : "";
+    if (!rawText) return null;
+    return { reply: rawText.trim() };
+  } catch {
+    return null;
+  }
 };
 
 const buildGuestModePrompt = (invalidSkills = []) => ({
@@ -949,56 +1058,35 @@ const createInterviewMentorResponse = async ({ body = {}, user = null }) => {
       focus: normalizedBody.focus,
     });
 
-  if (
-    !user &&
-    (!intent || intent === "generate-question") &&
-    !normalizedBody.message &&
-    !normalizedBody.question &&
-    !normalizedBody.answer &&
-    !normalizedBody.concept &&
-    normalizedBody.skillAnalysis.rawSkills.length === 0 &&
-    normalizedBody.focus.length === 0
-  ) {
-    return {
-      mentor: "fallback",
-      mode: "guest",
-      intent,
-      profile: buildProfileSummary(buildGuestProfile()),
-      data: buildGuestModePrompt(),
-    };
-  }
+  const chatMode = cleanText(body?.chatMode || body?.conversationMode).toLowerCase();
+  const conversationMode = detectConversationMode({
+    message: normalizedBody.message,
+    intent,
+    chatMode,
+    question: normalizedBody.question,
+    answer: normalizedBody.answer,
+    concept: normalizedBody.concept,
+    focus: normalizedBody.focus,
+    validSkills: normalizedBody.skillAnalysis.validSkills,
+  });
 
-  if (
-    normalizedBody.skillAnalysis.rawSkills.length > 0 &&
-    normalizedBody.skillAnalysis.validSkills.length === 0 &&
-    !normalizedBody.focus.length &&
-    !normalizedBody.concept
-  ) {
+  if (conversationMode === "general") {
+    const userMessage = normalizedBody.message || "Hello";
+    const guestProfile = buildGuestProfile();
+    const aiResponse = await generateGeneralChatWithGemini({
+      message: userMessage,
+      profile: user ? await buildPersonalizedProfile(user) : guestProfile,
+      user,
+    });
+
     return {
-      mentor: "fallback",
+      mentor: aiResponse ? "gemini" : "fallback",
       mode: user ? "personalized" : "guest",
-      intent,
-      profile: buildProfileSummary(user ? await buildPersonalizedProfile(user) : buildGuestProfile()),
-      data: buildGuestModePrompt(normalizedBody.skillAnalysis.invalidSkills),
-    };
-  }
-
-  if (
-    !isInterviewScopedRequest({
-      message: normalizedBody.message,
-      intent,
-      question: normalizedBody.question,
-      answer: normalizedBody.answer,
-      concept: normalizedBody.concept,
-      focus: normalizedBody.focus,
-      validSkills: normalizedBody.skillAnalysis.validSkills,
-    })
-  ) {
-    return {
-      error: {
-        status: 400,
-        message:
-          "I only help with interview preparation, resume-based guidance, answer improvement, weak areas, and career readiness.",
+      intent: "general_chat",
+      conversationMode: "general",
+      profile: buildProfileSummary(user ? await buildPersonalizedProfile(user) : guestProfile),
+      data: aiResponse || {
+        reply: "Hi! I'm your AI Mentor. I can help with coding, DSA, system design, career guidance, interview prep, and much more. What would you like to explore?",
       },
     };
   }
@@ -1051,6 +1139,7 @@ const createInterviewMentorResponse = async ({ body = {}, user = null }) => {
     mentor,
     mode,
     intent,
+    conversationMode,
     profile: buildProfileSummary(profile),
     data,
   };
