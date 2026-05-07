@@ -19,6 +19,16 @@ async function parseResponsePayload(response) {
   return text ? { message: text } : {};
 }
 
+/** Prefer detailed `error` from APIs that wrap failures (e.g. resume upload). */
+function formatRequestFailureMessage(payload) {
+  const message = payload?.message || "Request failed";
+  const detail = typeof payload?.error === "string" ? payload.error.trim() : "";
+  if (detail && detail !== message) {
+    return `${message} — ${detail}`;
+  }
+  return message;
+}
+
 async function requestInterviewApi(pathname, options = {}) {
   const {
     method = "GET",
@@ -46,7 +56,7 @@ async function requestInterviewApi(pathname, options = {}) {
       throw new Error("Session expired. Please sign in again.");
     }
 
-    throw new Error(payload?.message || "Request failed");
+    throw new Error(formatRequestFailureMessage(payload));
   }
 
   return payload;

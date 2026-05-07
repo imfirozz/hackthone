@@ -581,6 +581,19 @@ const parseResumeBuffer = async (fileBuffer) => {
   try {
     const parsedPdf = await parser.getText();
     extractedText = cleanText(parsedPdf.text);
+  } catch (parseErr) {
+    const raw = parseErr?.message || String(parseErr);
+    if (/password|Password|encrypt/i.test(raw)) {
+      throw new Error(
+        "This PDF is password-protected or encrypted. Export an unlocked PDF and try again.",
+      );
+    }
+    if (/Invalid PDF|malformed/i.test(raw)) {
+      throw new Error(
+        "The file could not be read as a valid PDF. Re-export from Word/Google Docs or use a different file.",
+      );
+    }
+    throw parseErr;
   } finally {
     try {
       await parser.destroy();
@@ -590,7 +603,9 @@ const parseResumeBuffer = async (fileBuffer) => {
   }
 
   if (!extractedText) {
-    throw new Error("Unable to extract text from the uploaded PDF");
+    throw new Error(
+      "No readable text was found in this PDF. Scanned or image-only resumes are not supported—export a text-based PDF (Print to PDF) or use an OCR’d copy.",
+    );
   }
 
   try {

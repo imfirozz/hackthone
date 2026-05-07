@@ -44,9 +44,22 @@ resumeRouter.post("/upload", (req, res) => {
         extractedText: result.extractedText,
       });
     } catch (err) {
+      const detail = err?.message || String(err);
+      const isClientIssue =
+        /No readable text|password-protected|valid PDF|Invalid PDF|encrypted|Unable to extract text|could not be read as a valid PDF|unlocked PDF/i.test(
+          detail,
+        );
+
+      if (isClientIssue) {
+        return res.status(400).json({
+          message: detail,
+          error: detail,
+        });
+      }
+
       return res.status(500).json({
         message: "Failed to parse resume",
-        error: err.message,
+        error: detail,
       });
     }
   });

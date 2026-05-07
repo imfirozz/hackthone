@@ -1,7 +1,34 @@
+import React from "react";
 import { motion, LazyMotion, domAnimation } from "framer-motion";
 import { Link } from "react-router-dom";
 
 export default function Body() {
+  const splineRef = React.useRef(null);
+
+  React.useEffect(() => {
+    if (!window.customElements.get('spline-viewer')) {
+      const script = document.createElement('script');
+      script.type = 'module';
+      script.src = 'https://unpkg.com/@splinetool/viewer@1.12.92/build/spline-viewer.js';
+      document.body.appendChild(script);
+    }
+    // Inject the spline-viewer element if not already present
+    if (splineRef.current && !splineRef.current.querySelector('spline-viewer')) {
+      const viewer = document.createElement('spline-viewer');
+      viewer.setAttribute('url', 'https://prod.spline.design/7Ov1JS8yOuOZZxa6/scene.splinecode');
+      viewer.style.width = '100%';
+      viewer.style.maxWidth = '900px';
+      viewer.style.height = '340px';
+      viewer.style.margin = '0 auto 2rem';
+      viewer.style.display = 'block';
+      viewer.style.borderRadius = '24px';
+      viewer.style.overflow = 'hidden';
+      viewer.style.boxShadow = '0 4px 32px 0 rgba(0,0,0,0.10)';
+      viewer.style.background = '#fff';
+      splineRef.current.appendChild(viewer);
+    }
+  }, []);
+
   const dreamJobCards = [
     {
       title: "Mock Interviews",
@@ -75,6 +102,8 @@ export default function Body() {
 
   return (
     <div className="relative overflow-hidden px-6 py-16 md:px-8">
+      {/* Spline 3D Viewer at the top of the Home page */}
+      <div ref={splineRef} style={{ width: '100%', display: 'flex', justifyContent: 'center', marginTop: '2rem' }} />
       <LazyMotion features={domAnimation}>
         <div className="relative z-10 max-w-7xl mx-auto">
           <motion.div
