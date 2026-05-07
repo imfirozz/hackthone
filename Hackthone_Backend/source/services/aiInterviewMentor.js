@@ -371,14 +371,17 @@ You can help with:
 RULES:
 - Be conversational, warm, and helpful
 - Give practical, actionable answers
-- Use code examples when relevant
+- Keep responses SHORT and CONCISE (3-8 sentences max for simple questions)
+- For coding questions, give a brief explanation + one short code example
 - Use markdown formatting (headers, code blocks, bold, lists)
+- Do NOT write essays or long paragraphs
 - Do NOT force interview context unless the user asks about interviews
-- Be concise but thorough
+- Get to the point quickly
+- If the question is simple (greetings, definitions), keep it to 2-3 sentences
 
 User message: ${message}
 
-Respond naturally. Use markdown formatting. If the user asks a coding question, include code examples in code blocks with the language specified.
+Respond concisely. Use markdown. Keep it brief and clear.
 `;
 
   try {
@@ -1081,6 +1084,45 @@ const createInterviewMentorResponse = async ({ body = {}, user = null }) => {
     focus: normalizedBody.focus,
     validSkills: normalizedBody.skillAnalysis.validSkills,
   });
+
+  if (conversationMode === "profile") {
+    if (!user) {
+      return {
+        mentor: "fallback",
+        mode: "guest",
+        intent: "general_chat",
+        conversationMode: "profile",
+        profile: buildProfileSummary(buildGuestProfile()),
+        data: {
+          reply: "To access your profile data, resume skills, and personalized coaching, you need to **sign in** first and **upload your resume**.\n\nOnce logged in, I can:\n- Show your resume skills\n- Identify your weak areas\n- Give personalized interview questions\n- Track your progress",
+          practiceGuidance: [
+            "Sign in using the top-right login button.",
+            "Upload your resume from the dashboard.",
+            "Come back and ask me anything about your profile.",
+          ],
+        },
+      };
+    }
+
+    const profileData = await buildPersonalizedProfile(user);
+    if (profileData.resumeSkills.length === 0 && profileData.interviewCount === 0) {
+      return {
+        mentor: "fallback",
+        mode: "personalized",
+        intent: "general_chat",
+        conversationMode: "profile",
+        profile: buildProfileSummary(profileData),
+        data: {
+          reply: "You are logged in, but I don't have your resume data yet. **Upload your resume** from the dashboard so I can analyze your skills and give personalized guidance.",
+          practiceGuidance: [
+            "Go to Dashboard → Upload Resume.",
+            "I will extract your skills, frameworks, and tools.",
+            "Then ask me about your weak areas or for personalized questions.",
+          ],
+        },
+      };
+    }
+  }
 
   if (conversationMode === "general") {
     const userMessage = normalizedBody.message || "Hello";
