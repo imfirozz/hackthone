@@ -3,7 +3,9 @@
     "start": "node \"Hackthone_Backend/source/Hackthone.js\"",
     "backend": "node \"Hackthone_Backend/source/Hackthone.js\"",
     "dev": "npm --prefix \"Hackthone_frontend\" run dev",
-    "frontend": "npm --prefix \"Hackthone_frontend\" run dev"
+    "frontend": "npm --prefix \"Hackthone_frontend\" run dev",
+    "build": "npm --prefix \"Hackthone_frontend\" run build",
+    "build:frontend": "npm --prefix \"Hackthone_frontend\" run build"
   },
   "dependencies": {
     "@napi-rs/canvas": "^0.1.80",

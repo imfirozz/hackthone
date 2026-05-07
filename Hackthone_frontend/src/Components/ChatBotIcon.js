@@ -16,7 +16,7 @@ import {
 
 const CHAT_STORAGE_PREFIX = "aix_interview_mentor_v3";
 const MAX_STORED_MESSAGES = 18;
-const PANEL_WIDTH = 460;
+const PANEL_WIDTH = 440;
 
 const INTERVIEW_TYPE_OPTIONS = [
   { value: "technical", label: "Technical" },
@@ -350,6 +350,58 @@ function buildQuickActions({ authIdentity, routeContext, profileSummary }) {
   }
 
   return actions;
+}
+
+function buildPromptSuggestions(activeTool, routeContext, draft) {
+  const skill = normalizeText(draft.skill) || routeContext.defaultSkill || "React.js";
+  const type = toTitleCase(draft.interviewType || routeContext.interviewType || "technical");
+  const difficulty = toTitleCase(draft.difficulty || routeContext.difficulty || "medium");
+
+  if (activeTool === "question") {
+    return [
+      `Generate a ${difficulty} ${type} question on ${skill}.`,
+      "Give me a follow-up interviewer question after I answer.",
+      "Ask one coding interview question and tell me what interviewer expects.",
+    ];
+  }
+
+  if (activeTool === "concept") {
+    return [
+      `Explain ${skill} in interview language with trade-offs.`,
+      "Teach me this concept with one practical example.",
+      "What follow-up questions can interviewer ask on this concept?",
+    ];
+  }
+
+  if (activeTool === "feedback") {
+    return [
+      "Score my answer out of 10 and explain why.",
+      "Tell me 3 strengths and 3 improvements in my answer.",
+      "Give me an ideal answer in STAR format.",
+    ];
+  }
+
+  if (activeTool === "improve") {
+    return [
+      "Refine my answer to sound confident and concise.",
+      "Keep my meaning, but make this answer interview-ready.",
+      "Rewrite this answer with better structure and impact.",
+    ];
+  }
+
+  if (activeTool === "coaching") {
+    return [
+      "Create a 7-day plan for my weak interview areas.",
+      "Coach me with one question at a time and evaluate me.",
+      "Build a focused practice loop from my mistakes.",
+    ];
+  }
+
+  return [
+    `Ask me a realistic ${difficulty.toLowerCase()} ${type.toLowerCase()} question on ${skill}.`,
+    "Review one of my interview answers and make it stronger.",
+    "Help me improve communication and confidence for interviews.",
+  ];
 }
 
 function buildStructuredSummary(toolKey, draft) {
@@ -971,6 +1023,8 @@ function ToolPicker({ activeTool, onSelect }) {
             key={tool.key}
             type="button"
             onClick={() => onSelect(isActive ? "chat" : tool.key)}
+            aria-pressed={isActive}
+            title={tool.title}
             style={{
               borderRadius: 14,
               border: isActive
@@ -1393,6 +1447,10 @@ export default function ChatBotIcon() {
     () => buildQuickActions({ authIdentity, routeContext, profileSummary }),
     [authIdentity, routeContext, profileSummary],
   );
+  const promptSuggestions = useMemo(
+    () => buildPromptSuggestions(activeTool, routeContext, draft),
+    [activeTool, draft, routeContext],
+  );
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -1621,6 +1679,14 @@ export default function ChatBotIcon() {
       [field]: value,
     }));
   }, []);
+
+  const handlePromptSuggestion = useCallback((value) => {
+    setInputValue(value);
+    if (!isOpen) {
+      setIsOpen(true);
+    }
+    setTimeout(() => inputRef.current?.focus(), 0);
+  }, [isOpen]);
 
   const clearChat = useCallback(() => {
     const nextWelcomeMessage = buildWelcomeMessage({ authIdentity, routeContext });
@@ -1871,14 +1937,42 @@ export default function ChatBotIcon() {
                   TOOL_PRESETS.find((tool) => tool.key === activeTool)?.intent || "",
                 )}.`}
           </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
+            {promptSuggestions.map((prompt) => (
+              <button
+                key={prompt}
+                type="button"
+                onClick={() => handlePromptSuggestion(prompt)}
+                style={{
+                  border: "1px solid rgba(148,163,184,0.22)",
+                  background: "rgba(15,23,42,0.7)",
+                  color: "rgba(226,232,240,0.9)",
+                  borderRadius: 999,
+                  padding: "7px 10px",
+                  fontSize: 11,
+                  lineHeight: 1.4,
+                  cursor: "pointer",
+                }}
+              >
+                {prompt}
+              </button>
+            ))}
+          </div>
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
             <input
               ref={inputRef}
               type="text"
               value={inputValue}
               onChange={(event) => setInputValue(event.target.value)}
-              placeholder="Ask anything about interviews, weak areas, answers, or concepts..."
+              placeholder={
+                activeTool === "chat"
+                  ? "Ask anything about interviews, weak areas, answers, or concepts..."
+                  : `Ask in ${formatIntentLabel(
+                      TOOL_PRESETS.find((tool) => tool.key === activeTool)?.intent || "",
+                    )} mode...`
+              }
               disabled={isLoading}
+              aria-label="Chat with AI interview mentor"
               style={{
                 flex: 1,
                 padding: "12px 14px",
