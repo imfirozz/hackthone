@@ -543,29 +543,33 @@ function normalizeMentorError(error) {
 function ToolBadge({ children, tone = "default" }) {
   const styles = {
     default: {
-      background: "rgba(255,255,255,0.07)",
-      color: "rgba(226,232,240,0.9)",
-      border: "1px solid rgba(255,255,255,0.08)",
+      background: "rgba(255,255,255,0.05)",
+      color: "rgba(226,232,240,0.85)",
+      border: "1px solid rgba(255,255,255,0.06)",
     },
     primary: {
-      background: "rgba(59,130,246,0.12)",
+      background: "rgba(59,130,246,0.1)",
       color: "#93c5fd",
-      border: "1px solid rgba(59,130,246,0.24)",
+      border: "1px solid rgba(59,130,246,0.18)",
+      boxShadow: "0 0 8px rgba(59,130,246,0.06)",
     },
     success: {
-      background: "rgba(34,197,94,0.12)",
+      background: "rgba(34,197,94,0.1)",
       color: "#86efac",
-      border: "1px solid rgba(34,197,94,0.24)",
+      border: "1px solid rgba(34,197,94,0.18)",
+      boxShadow: "0 0 8px rgba(34,197,94,0.06)",
     },
     warning: {
-      background: "rgba(251,191,36,0.12)",
+      background: "rgba(251,191,36,0.1)",
       color: "#fde68a",
-      border: "1px solid rgba(251,191,36,0.24)",
+      border: "1px solid rgba(251,191,36,0.18)",
+      boxShadow: "0 0 8px rgba(251,191,36,0.06)",
     },
     danger: {
-      background: "rgba(239,68,68,0.12)",
+      background: "rgba(239,68,68,0.1)",
       color: "#fca5a5",
-      border: "1px solid rgba(239,68,68,0.24)",
+      border: "1px solid rgba(239,68,68,0.18)",
+      boxShadow: "0 0 8px rgba(239,68,68,0.06)",
     },
   };
 
@@ -574,13 +578,14 @@ function ToolBadge({ children, tone = "default" }) {
       style={{
         display: "inline-flex",
         alignItems: "center",
-        gap: 6,
-        padding: "5px 9px",
+        gap: 5,
+        padding: "4px 10px",
         borderRadius: 999,
-        fontSize: 10,
-        fontWeight: 700,
-        letterSpacing: "0.05em",
+        fontSize: 9.5,
+        fontWeight: 600,
+        letterSpacing: "0.06em",
         textTransform: "uppercase",
+        transition: "all 0.25s ease",
         ...styles[tone],
       }}
     >
@@ -1028,7 +1033,7 @@ function ToolPicker({ activeTool, onSelect }) {
   return (
     <div
       style={{
-        padding: "12px 14px 0",
+        padding: "14px 18px 4px",
         display: "grid",
         gridTemplateColumns: "repeat(5, minmax(0, 1fr))",
         gap: 8,
@@ -1046,38 +1051,46 @@ function ToolPicker({ activeTool, onSelect }) {
             aria-pressed={isActive}
             title={tool.title}
             style={{
-              borderRadius: 14,
+              borderRadius: 16,
               border: isActive
-                ? "1px solid rgba(59,130,246,0.38)"
-                : "1px solid rgba(255,255,255,0.08)",
+                ? "1px solid rgba(59,130,246,0.3)"
+                : "1px solid rgba(255,255,255,0.05)",
               background: isActive
-                ? "linear-gradient(180deg, rgba(59,130,246,0.18), rgba(15,23,42,0.3))"
-                : "rgba(255,255,255,0.03)",
-              color: isActive ? "#dbeafe" : "#cbd5e1",
-              padding: "10px 8px",
+                ? "linear-gradient(180deg, rgba(59,130,246,0.14) 0%, rgba(15,23,42,0.25) 100%)"
+                : "rgba(255,255,255,0.02)",
+              color: isActive ? "#dbeafe" : "#94a3b8",
+              padding: "12px 8px",
               cursor: "pointer",
               display: "grid",
-              gap: 4,
+              gap: 6,
               justifyItems: "center",
-              minHeight: 68,
+              minHeight: 72,
+              transition: "all 0.3s cubic-bezier(0.16, 1, 0.3, 1)",
+              boxShadow: isActive ? "0 0 16px rgba(59,130,246,0.08)" : "none",
             }}
+            onMouseEnter={(e) => { if (!isActive) { e.currentTarget.style.background = "rgba(255,255,255,0.04)"; e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)"; e.currentTarget.style.color = "#cbd5e1"; e.currentTarget.style.transform = "translateY(-1px)"; } }}
+            onMouseLeave={(e) => { if (!isActive) { e.currentTarget.style.background = "rgba(255,255,255,0.02)"; e.currentTarget.style.borderColor = "rgba(255,255,255,0.05)"; e.currentTarget.style.color = "#94a3b8"; e.currentTarget.style.transform = "translateY(0)"; } }}
           >
             <span
               style={{
-                width: 28,
-                height: 28,
-                borderRadius: 10,
+                width: 30,
+                height: 30,
+                borderRadius: 12,
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                background: isActive ? "rgba(59,130,246,0.18)" : "rgba(255,255,255,0.05)",
+                background: isActive
+                  ? "linear-gradient(135deg, rgba(59,130,246,0.22), rgba(6,182,212,0.12))"
+                  : "rgba(255,255,255,0.04)",
                 fontSize: 12,
                 fontWeight: 800,
+                transition: "all 0.25s ease",
+                boxShadow: isActive ? "0 0 10px rgba(59,130,246,0.12)" : "none",
               }}
             >
               {tool.icon}
             </span>
-            <span style={{ fontSize: 11, fontWeight: 700 }}>{tool.label}</span>
+            <span style={{ fontSize: 10.5, fontWeight: 600, letterSpacing: "0.02em" }}>{tool.label}</span>
           </button>
         );
       })}
@@ -1985,11 +1998,11 @@ export default function ChatBotIcon() {
         <form
           onSubmit={handleFreeformSubmit}
           style={{
-            padding: "14px 16px",
-            borderTop: "1px solid rgba(255,255,255,0.08)",
+            padding: "16px 20px",
+            borderTop: "1px solid rgba(255,255,255,0.05)",
             display: "grid",
             gap: 10,
-            background: "rgba(255,255,255,0.02)",
+            background: "linear-gradient(180deg, rgba(15,23,42,0.3) 0%, rgba(8,12,28,0.5) 100%)",
             flexShrink: 0,
           }}
         >
@@ -2006,22 +2019,26 @@ export default function ChatBotIcon() {
                   TOOL_PRESETS.find((tool) => tool.key === activeTool)?.intent || "",
                 )}.`}
           </div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 7, maxHeight: 86, overflowY: "auto", paddingRight: 4 }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, maxHeight: 82, overflowY: "auto", paddingRight: 4 }}>
             {promptSuggestions.map((prompt) => (
               <button
                 key={prompt}
                 type="button"
                 onClick={() => handlePromptSuggestion(prompt)}
                 style={{
-                  border: "1px solid rgba(148,163,184,0.22)",
-                  background: "rgba(15,23,42,0.7)",
-                  color: "rgba(226,232,240,0.9)",
+                  border: "1px solid rgba(100,140,255,0.12)",
+                  background: "rgba(15,23,42,0.6)",
+                  color: "rgba(203,213,225,0.85)",
                   borderRadius: 999,
-                  padding: "7px 10px",
+                  padding: "6px 12px",
                   fontSize: 11,
                   lineHeight: 1.4,
                   cursor: "pointer",
+                  transition: "all 0.25s ease",
+                  backdropFilter: "blur(8px)",
                 }}
+                onMouseEnter={(e) => { e.currentTarget.style.borderColor = "rgba(59,130,246,0.3)"; e.currentTarget.style.color = "#e2e8f0"; e.currentTarget.style.boxShadow = "0 0 12px rgba(59,130,246,0.08)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.borderColor = "rgba(100,140,255,0.12)"; e.currentTarget.style.color = "rgba(203,213,225,0.85)"; e.currentTarget.style.boxShadow = "none"; }}
               >
                 {prompt}
               </button>
