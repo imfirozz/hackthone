@@ -17,6 +17,7 @@ import {
 const CHAT_STORAGE_PREFIX = "aix_interview_mentor_v3";
 const MAX_STORED_MESSAGES = 18;
 const PANEL_WIDTH = 440;
+const PANEL_HALF_SCREEN_WIDTH = "min(50vw, 760px)";
 
 const INTERVIEW_TYPE_OPTIONS = [
   { value: "technical", label: "Technical" },
@@ -1712,20 +1713,34 @@ export default function ChatBotIcon() {
   return (
     <>
       <div
+        aria-hidden={!isOpen}
+        onClick={toggleChat}
+        style={{
+          position: "fixed",
+          inset: 0,
+          background: "linear-gradient(90deg, rgba(2,6,23,0.32), rgba(2,6,23,0.54))",
+          opacity: isOpen ? 1 : 0,
+          pointerEvents: isOpen ? "auto" : "none",
+          transition: "opacity 0.28s ease",
+          zIndex: 98,
+        }}
+      />
+      <div
         id="chatbot-panel"
         style={{
           position: "fixed",
-          bottom: isOpen ? 96 : 82,
-          right: 24,
-          width: PANEL_WIDTH,
-          maxWidth: "calc(100vw - 32px)",
-          height: isOpen ? "min(720px, calc(100vh - 132px))" : "0px",
+          top: 16,
+          bottom: 16,
+          right: 16,
+          width: isOpen ? PANEL_HALF_SCREEN_WIDTH : PANEL_WIDTH,
+          maxWidth: isOpen ? "min(50vw, calc(100vw - 24px))" : "calc(100vw - 32px)",
+          height: "calc(100vh - 32px)",
           opacity: isOpen ? 1 : 0,
-          transform: isOpen ? "scale(1) translateY(0)" : "scale(0.92) translateY(16px)",
-          transformOrigin: "bottom right",
+          transform: isOpen ? "translateX(0) scale(1)" : "translateX(32px) scale(0.98)",
+          transformOrigin: "center right",
           transition: "all 0.35s cubic-bezier(0.4, 0, 0.2, 1)",
           zIndex: 99,
-          borderRadius: 24,
+          borderRadius: 28,
           overflow: "hidden",
           pointerEvents: isOpen ? "auto" : "none",
           display: "flex",
@@ -1851,7 +1866,7 @@ export default function ChatBotIcon() {
           style={{
             flex: 1,
             overflowY: "auto",
-            padding: "16px 14px 12px",
+            padding: "20px 18px 14px",
             scrollbarWidth: "thin",
             scrollbarColor: "rgba(255,255,255,0.1) transparent",
           }}
@@ -1916,7 +1931,7 @@ export default function ChatBotIcon() {
         <form
           onSubmit={handleFreeformSubmit}
           style={{
-            padding: "12px 14px",
+            padding: "14px 16px",
             borderTop: "1px solid rgba(255,255,255,0.08)",
             display: "grid",
             gap: 10,
@@ -1937,7 +1952,7 @@ export default function ChatBotIcon() {
                   TOOL_PRESETS.find((tool) => tool.key === activeTool)?.intent || "",
                 )}.`}
           </div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 7, maxHeight: 86, overflowY: "auto", paddingRight: 4 }}>
             {promptSuggestions.map((prompt) => (
               <button
                 key={prompt}
@@ -2015,6 +2030,9 @@ export default function ChatBotIcon() {
       <div
         id="chatbot-fab"
         className="fixed bottom-6 right-6 z-[100] flex flex-col items-end gap-3"
+        style={{
+          opacity: isOpen ? 0.92 : 1,
+        }}
       >
         {!isOpen ? (
           <div
@@ -2112,11 +2130,14 @@ export default function ChatBotIcon() {
 
         @media (max-width: 640px) {
           #chatbot-panel {
-            right: 12px !important;
-            bottom: ${isOpen ? "84px" : "72px"} !important;
-            width: calc(100vw - 24px) !important;
-            max-width: calc(100vw - 24px) !important;
-            height: ${isOpen ? "calc(100vh - 104px)" : "0px"} !important;
+            top: 8px !important;
+            right: 8px !important;
+            bottom: 8px !important;
+            width: calc(100vw - 16px) !important;
+            max-width: calc(100vw - 16px) !important;
+            height: calc(100vh - 16px) !important;
+            border-radius: 20px !important;
+            transform: ${isOpen ? "translateX(0) scale(1)" : "translateX(18px) scale(0.98)"} !important;
           }
         }
       `}</style>
