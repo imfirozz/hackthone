@@ -6,9 +6,8 @@ module.exports = async (req, res) => {
     return app(req, res);
   } catch (error) {
     console.error("Vercel API bootstrap failed:", error);
-    return res.status(500).json({
-      message: "Server initialization failed.",
-      error: error.message,
-    });
+    req.bootstrapError = error;
+    res.setHeader("x-service-bootstrap", "degraded");
+    return app(req, res);
   }
 };
