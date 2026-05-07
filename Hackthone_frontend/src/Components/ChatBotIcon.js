@@ -128,29 +128,139 @@ function formatMentorSource(value = "") {
   return toTitleCase(value);
 }
 
-function parseMarkdownInline(text = "") {
-  return String(text)
-    .split("\n")
-    .map((line, lineIndex) => {
-      const parts = line.split(/(\*\*.*?\*\*)/g).map((segment, segmentIndex) => {
-        if (segment.startsWith("**") && segment.endsWith("**")) {
-          return (
-            <strong key={`${lineIndex}-${segmentIndex}`} style={{ color: "#fff", fontWeight: 700 }}>
-              {segment.slice(2, -2)}
-            </strong>
-          );
-        }
-
-        return segment;
-      });
-
+function renderInline(text = "") {
+  const parts = String(text).split(/(`[^`]+`|\*\*.*?\*\*|\*[^*]+\*)/g);
+  return parts.map((segment, index) => {
+    if (segment.startsWith("`") && segment.endsWith("`")) {
       return (
-        <span key={lineIndex}>
-          {lineIndex > 0 && <br />}
-          {parts}
-        </span>
+        <code key={index} style={{
+          padding: "2px 6px", borderRadius: 6,
+          background: "rgba(255,255,255,0.08)",
+          border: "1px solid rgba(255,255,255,0.06)",
+          fontFamily: "'SF Mono','Fira Code','Consolas',monospace",
+          fontSize: "0.88em", color: "#93c5fd",
+        }}>{segment.slice(1, -1)}</code>
       );
-    });
+    }
+    if (segment.startsWith("**") && segment.endsWith("**")) {
+      return <strong key={index} style={{ color: "#fff", fontWeight: 700 }}>{segment.slice(2, -2)}</strong>;
+    }
+    if (segment.startsWith("*") && segment.endsWith("*") && !segment.startsWith("**")) {
+      return <em key={index} style={{ color: "#cbd5e1", fontStyle: "italic" }}>{segment.slice(1, -1)}</em>;
+    }
+    return segment;
+  });
+}
+
+function renderMarkdown(text = "") {
+  const lines = String(text).split("\n");
+  const elements = [];
+  let i = 0;
+  let key = 0;
+
+  while (i < lines.length) {
+    const line = lines[i];
+
+    if (line.trimStart().startsWith("```")) {
+      const lang = line.trimStart().slice(3).trim();
+      const codeLines = [];
+      i++;
+      while (i < lines.length && !lines[i].trimStart().startsWith("```")) {
+        codeLines.push(lines[i]);
+        i++;
+      }
+      i++;
+      elements.push(
+        <div key={key++} style={{
+          position: "relative", margin: "8px 0", borderRadius: 12,
+          background: "rgba(0,0,0,0.4)", border: "1px solid rgba(255,255,255,0.08)",
+          overflow: "hidden",
+        }}>
+          {lang && <div style={{
+            padding: "4px 12px", fontSize: 10, fontWeight: 700,
+            letterSpacing: "0.08em", textTransform: "uppercase",
+            color: "rgba(148,163,184,0.8)",
+            borderBottom: "1px solid rgba(255,255,255,0.06)",
+            background: "rgba(255,255,255,0.03)",
+          }}>{lang}</div>}
+          <pre style={{
+            margin: 0, padding: 12, overflowX: "auto",
+            fontFamily: "'SF Mono','Fira Code','Consolas',monospace",
+            fontSize: 12, lineHeight: 1.6, color: "#e2e8f0",
+          }}><code>{codeLines.join("\n")}</code></pre>
+        </div>
+      );
+      continue;
+    }
+
+    const headerMatch = line.match(/^(#{1,3})\s+(.+)/);
+    if (headerMatch) {
+      const level = headerMatch[1].length;
+      const sizes = { 1: 16, 2: 14.5, 3: 13 };
+      elements.push(
+        <div key={key++} style={{ fontSize: sizes[level], fontWeight: 700, color: "#fff", margin: "8px 0 4px" }}>
+          {renderInline(headerMatch[2])}
+        </div>
+      );
+      i++;
+      continue;
+    }
+
+    if (line.trimStart().startsWith("> ")) {
+      elements.push(
+        <div key={key++} style={{
+          padding: "8px 12px", margin: "6px 0",
+          borderLeft: "3px solid rgba(59,130,246,0.4)",
+          background: "rgba(59,130,246,0.06)",
+          borderRadius: "0 8px 8px 0",
+          color: "#cbd5e1", fontSize: 12.5, lineHeight: 1.6,
+        }}>{renderInline(line.replace(/^>\s*/, ""))}</div>
+      );
+      i++;
+      continue;
+    }
+
+    if (/^\s*[-*]\s+/.test(line)) {
+      const listItems = [];
+      while (i < lines.length && /^\s*[-*]\s+/.test(lines[i])) {
+        listItems.push(lines[i].replace(/^\s*[-*]\s+/, ""));
+        i++;
+      }
+      elements.push(
+        <ul key={key++} style={{ margin: "4px 0", paddingLeft: 18, color: "#dbe6f4", fontSize: 12.5, lineHeight: 1.7 }}>
+          {listItems.map((item, idx) => <li key={idx} style={{ marginBottom: 3 }}>{renderInline(item)}</li>)}
+        </ul>
+      );
+      continue;
+    }
+
+    if (/^\s*\d+\.\s+/.test(line)) {
+      const listItems = [];
+      while (i < lines.length && /^\s*\d+\.\s+/.test(lines[i])) {
+        listItems.push(lines[i].replace(/^\s*\d+\.\s+/, ""));
+        i++;
+      }
+      elements.push(
+        <ol key={key++} style={{ margin: "4px 0", paddingLeft: 18, color: "#dbe6f4", fontSize: 12.5, lineHeight: 1.7 }}>
+          {listItems.map((item, idx) => <li key={idx} style={{ marginBottom: 3 }}>{renderInline(item)}</li>)}
+        </ol>
+      );
+      continue;
+    }
+
+    if (!line.trim()) {
+      elements.push(<div key={key++} style={{ height: 6 }} />);
+      i++;
+      continue;
+    }
+
+    elements.push(
+      <div key={key++} style={{ lineHeight: 1.65 }}>{renderInline(line)}</div>
+    );
+    i++;
+  }
+
+  return elements;
 }
 
 function buildRouteContext(pathname = "/") {
@@ -540,6 +650,105 @@ function normalizeMentorError(error) {
   return rawMessage || "Request failed";
 }
 
+function StreamingText({ text, speed = 12, onComplete }) {
+  const [displayedLength, setDisplayedLength] = useState(0);
+  const [completed, setCompleted] = useState(false);
+  const textRef = useRef(text);
+
+  useEffect(() => {
+    textRef.current = text;
+    setDisplayedLength(0);
+    setCompleted(false);
+  }, [text]);
+
+  useEffect(() => {
+    if (completed || displayedLength >= textRef.current.length) {
+      if (!completed) {
+        setCompleted(true);
+        onComplete?.();
+      }
+      return;
+    }
+    const chunkSize = Math.random() > 0.7 ? 3 : Math.random() > 0.4 ? 2 : 1;
+    const timer = setTimeout(() => {
+      setDisplayedLength((prev) => Math.min(prev + chunkSize, textRef.current.length));
+    }, speed);
+    return () => clearTimeout(timer);
+  }, [displayedLength, completed, speed, onComplete]);
+
+  const displayedText = text.slice(0, displayedLength);
+
+  return (
+    <div>
+      {renderMarkdown(displayedText)}
+      {!completed && (
+        <span
+          style={{
+            display: "inline-block", width: 2, height: 14,
+            background: "#3b82f6", marginLeft: 2, verticalAlign: "text-bottom",
+            animation: "cursorBlink 0.8s ease-in-out infinite",
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function useSmartScroll(containerRef, dependencies) {
+  const isNearBottomRef = useRef(true);
+  const [showScrollBtn, setShowScrollBtn] = useState(false);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    const handleScroll = () => {
+      const distFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
+      const nearBottom = distFromBottom < 120;
+      isNearBottomRef.current = nearBottom;
+      setShowScrollBtn(!nearBottom);
+    };
+    container.addEventListener("scroll", handleScroll, { passive: true });
+    return () => container.removeEventListener("scroll", handleScroll);
+  }, [containerRef]);
+
+  useEffect(() => {
+    if (isNearBottomRef.current && containerRef.current) {
+      containerRef.current.scrollTo({ top: containerRef.current.scrollHeight, behavior: "smooth" });
+    }
+  }, dependencies);
+
+  const scrollToBottom = useCallback(() => {
+    containerRef.current?.scrollTo({ top: containerRef.current.scrollHeight, behavior: "smooth" });
+    setShowScrollBtn(false);
+  }, [containerRef]);
+
+  return { showScrollBtn, scrollToBottom };
+}
+
+function ScrollToBottomButton({ onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label="Scroll to latest message"
+      style={{
+        position: "absolute", bottom: 8, left: "50%",
+        transform: "translateX(-50%)", padding: "6px 14px",
+        borderRadius: 999, border: "1px solid rgba(59,130,246,0.2)",
+        background: "rgba(15,23,42,0.9)", color: "#93c5fd",
+        fontSize: 11, fontWeight: 600, cursor: "pointer",
+        backdropFilter: "blur(12px)", boxShadow: "0 4px 16px rgba(0,0,0,0.3)",
+        transition: "all 0.25s ease", zIndex: 5,
+        animation: "chatFadeIn 0.3s ease-out",
+      }}
+      onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(59,130,246,0.15)"; e.currentTarget.style.borderColor = "rgba(59,130,246,0.35)"; }}
+      onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(15,23,42,0.9)"; e.currentTarget.style.borderColor = "rgba(59,130,246,0.2)"; }}
+    >
+      ↓ New messages
+    </button>
+  );
+}
+
 function ToolBadge({ children, tone = "default" }) {
   const styles = {
     default: {
@@ -621,7 +830,7 @@ function SectionBlock({ title, value }) {
         {title}
       </div>
       <div style={{ color: "#dbe6f4", fontSize: 12.5, lineHeight: 1.6 }}>
-        {parseMarkdownInline(value)}
+        {renderMarkdown(value)}
       </div>
     </div>
   );
@@ -777,7 +986,7 @@ function ReviewCard({ review }) {
   );
 }
 
-function MessageBubble({ message }) {
+function MessageBubble({ message, isStreaming = false, onStreamComplete }) {
   const isUser = message.role === "user";
   const payload = message.payload || {};
   const meta = message.meta || {};
@@ -847,7 +1056,12 @@ function MessageBubble({ message }) {
               : "0 2px 16px rgba(0,0,0,0.15)",
         }}
       >
-        <div>{parseMarkdownInline(message.content)}</div>
+        <div>
+          {!isUser && isStreaming
+            ? <StreamingText text={message.content} onComplete={onStreamComplete} />
+            : renderMarkdown(message.content)
+          }
+        </div>
 
         {!isUser && !message.isError ? (
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
@@ -1467,7 +1681,9 @@ export default function ChatBotIcon() {
   );
   const [draft, setDraft] = useState(() => buildInitialDraft(routeContext, authIdentity));
   const [profileSummary, setProfileSummary] = useState(null);
+  const [streamingIndex, setStreamingIndex] = useState(-1);
   const messagesEndRef = useRef(null);
+  const messagesContainerRef = useRef(null);
   const inputRef = useRef(null);
   const storageKey = useMemo(() => buildStorageKey(authIdentity), [authIdentity]);
   const welcomeMessage = useMemo(
@@ -1485,13 +1701,10 @@ export default function ChatBotIcon() {
     [activeTool, draft, routeContext],
   );
 
-  const scrollToBottom = useCallback(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, []);
-
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages, isLoading, scrollToBottom]);
+  const { showScrollBtn, scrollToBottom } = useSmartScroll(
+    messagesContainerRef,
+    [messages, isLoading, streamingIndex],
+  );
 
   useEffect(() => {
     if (isOpen && inputRef.current) {
@@ -1565,6 +1778,11 @@ export default function ChatBotIcon() {
       if (event.key === "Escape" && isOpen) {
         setIsOpen(false);
       }
+      if ((event.metaKey || event.ctrlKey) && event.key === "k") {
+        event.preventDefault();
+        setIsOpen((prev) => !prev);
+        setHasUnread(false);
+      }
     };
 
     window.addEventListener("keydown", handleKeyDown);
@@ -1587,7 +1805,11 @@ export default function ChatBotIcon() {
       },
     };
 
-    setMessages((previous) => [...previous, assistantMessage]);
+    setMessages((previous) => {
+      const next = [...previous, assistantMessage];
+      setStreamingIndex(next.length - 1);
+      return next;
+    });
 
     if (response?.profile) {
       setProfileSummary(response.profile);
@@ -1760,6 +1982,10 @@ export default function ChatBotIcon() {
       />
       <div
         id="chatbot-panel"
+        role="dialog"
+        aria-modal="true"
+        aria-label="AI Interview Mentor chat panel"
+        aria-hidden={!isOpen}
         style={{
           position: "fixed",
           top: 16,
@@ -1927,7 +2153,12 @@ export default function ChatBotIcon() {
         />
 
         <div
+          ref={messagesContainerRef}
+          role="log"
+          aria-live="polite"
+          aria-label="Chat messages"
           style={{
+            position: "relative",
             flex: 1,
             overflowY: "auto",
             padding: "20px 18px 14px",
@@ -1936,7 +2167,12 @@ export default function ChatBotIcon() {
           }}
         >
           {messages.map((message, index) => (
-            <MessageBubble key={`${message.timestamp}-${index}`} message={message} />
+            <MessageBubble
+              key={`${message.timestamp}-${index}`}
+              message={message}
+              isStreaming={index === streamingIndex}
+              onStreamComplete={() => setStreamingIndex(-1)}
+            />
           ))}
           {isLoading && <TypingIndicator />}
 
@@ -1993,6 +2229,7 @@ export default function ChatBotIcon() {
           ) : null}
 
           <div ref={messagesEndRef} />
+          {showScrollBtn && <ScrollToBottomButton onClick={scrollToBottom} />}
         </div>
 
         <form
@@ -2124,7 +2361,7 @@ export default function ChatBotIcon() {
             }}
             className="rounded-xl bg-slate-900/90 px-4 py-2 text-sm font-medium text-white shadow-lg backdrop-blur-md border border-white/10"
           >
-            Open AI Interview Mentor
+            Open AI Mentor <span style={{ opacity: 0.5, fontSize: 11, marginLeft: 6 }}>⌘K</span>
           </div>
         ) : null}
 
@@ -2221,6 +2458,11 @@ export default function ChatBotIcon() {
         @keyframes ambientGlow {
           0%, 100% { opacity: 0.5; }
           50% { opacity: 0.8; }
+        }
+
+        @keyframes cursorBlink {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0; }
         }
 
         #chatbot-panel::-webkit-scrollbar { width: 3px; }
