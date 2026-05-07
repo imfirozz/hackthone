@@ -1,119 +1,750 @@
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { useLocation } from "react-router-dom";
 import { requestInterviewMentor } from "../services/interviewApi";
-import { getStoredAuthSession } from "../services/authApi";
+import {
+  AUTH_EXPIRED_EVENT,
+  AUTH_SESSION_UPDATED_EVENT,
+  getAuthIdentity,
+  getStoredAuthSession,
+} from "../services/authApi";
 
-// ==========================================
-// CHATBOT FLOATING ICON + FULL CHAT PANEL
-// ==========================================
+const CHAT_STORAGE_PREFIX = "aix_interview_mentor_v3";
+const MAX_STORED_MESSAGES = 18;
+const PANEL_WIDTH = 460;
 
-const WELCOME_MESSAGE = {
-  role: "assistant",
-  content:
-    "👋 Hi! I'm your AI Interview Mentor. I can help you with:\n\n• **Practice questions** — get realistic interview questions\n• **Concept explanations** — understand technical topics\n• **Answer improvement** — refine your responses\n• **Weak area coaching** — targeted practice plans\n\nJust type a message to get started!",
-  timestamp: Date.now(),
-};
-
-const QUICK_PROMPTS = [
-  { label: "🎯 Practice Question", message: "Give me a practice interview question for React.js" },
-  { label: "💡 Explain a Concept", message: "Explain closures in JavaScript for an interview" },
-  { label: "📈 Weak Area Coaching", message: "Help me improve my system design skills" },
+const INTERVIEW_TYPE_OPTIONS = [
+  { value: "technical", label: "Technical" },
+  { value: "hr", label: "HR" },
+  { value: "managerial", label: "Managerial" },
 ];
 
+const DIFFICULTY_OPTIONS = [
+  { value: "easy", label: "Easy" },
+  { value: "medium", label: "Medium" },
+  { value: "hard", label: "Hard" },
+];
+
+const TOOL_PRESETS = [
+  {
+    key: "question",
+    intent: "generate-question",
+    label: "Question",
+    icon: "Q",
+    title: "Generate a realistic question",
+    description: "Build a question around your skill, company, round, and difficulty.",
+  },
+  {
+    key: "concept",
+    intent: "explain-concept",
+    label: "Concept",
+    icon: "C",
+    title: "Explain a concept for interviews",
+    description: "Get interview-focused explanations, trade-offs, and examples.",
+  },
+  {
+    key: "improve",
+    intent: "improve-answer",
+    label: "Refine",
+    icon: "R",
+    title: "Refine an answer",
+    description: "Keep the meaning, but improve structure, clarity, and depth.",
+  },
+  {
+    key: "feedback",
+    intent: "answer-feedback",
+    label: "Review",
+    icon: "F",
+    title: "Score an answer",
+    description: "Get interview-style feedback, strength, improvement, and ideal answer.",
+  },
+  {
+    key: "coaching",
+    intent: "weak-area-coaching",
+    label: "Coaching",
+    icon: "W",
+    title: "Coach weak areas",
+    description: "Create a targeted practice loop from weak topics and failed concepts.",
+  },
+];
+
+function normalizeText(value = "") {
+  return String(value).replace(/\s+/g, " ").trim();
+}
+
+function toTitleCase(value = "") {
+  return normalizeText(value)
+    .toLowerCase()
+    .replace(/\b\w/g, (character) => character.toUpperCase());
+}
+
+function slugifyLabel(value = "") {
+  return normalizeText(value).toLowerCase().replace(/[^a-z0-9]+/g, "-");
+}
+
+function parseList(value = "") {
+  return String(value)
+    .split(/[\n,]/)
+    .map((item) => normalizeText(item))
+    .filter(Boolean);
+}
+
 function formatTimestamp(ts) {
-  const d = new Date(ts);
-  return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  const date = new Date(ts);
+  return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
-function parseMarkdownInline(text) {
-  // Handle bold **text**, bullet points, and newlines for display
-  return text.split("\n").map((line, i) => {
-    const parts = line.split(/(\*\*.*?\*\*)/g).map((segment, j) => {
-      if (segment.startsWith("**") && segment.endsWith("**")) {
-        return (
-          <strong key={j} style={{ color: "#fff", fontWeight: 700 }}>
-            {segment.slice(2, -2)}
-          </strong>
-        );
-      }
-      return segment;
+function formatIntentLabel(value = "") {
+  const labelMap = {
+    "generate-question": "Practice",
+    "explain-concept": "Concept",
+    "improve-answer": "Refine",
+    "answer-feedback": "Review",
+    "weak-area-coaching": "Coaching",
+  };
+
+  return labelMap[value] || toTitleCase(value.replace(/-/g, " "));
+}
+
+function formatMentorSource(value = "") {
+  if (!value) {
+    return "";
+  }
+
+  if (value.toLowerCase() === "gemini") {
+    return "AI";
+  }
+
+  if (value.toLowerCase() === "fallback") {
+    return "Fallback";
+  }
+
+  return toTitleCase(value);
+}
+
+function parseMarkdownInline(text = "") {
+  return String(text)
+    .split("\n")
+    .map((line, lineIndex) => {
+      const parts = line.split(/(\*\*.*?\*\*)/g).map((segment, segmentIndex) => {
+        if (segment.startsWith("**") && segment.endsWith("**")) {
+          return (
+            <strong key={`${lineIndex}-${segmentIndex}`} style={{ color: "#fff", fontWeight: 700 }}>
+              {segment.slice(2, -2)}
+            </strong>
+          );
+        }
+
+        return segment;
+      });
+
+      return (
+        <span key={lineIndex}>
+          {lineIndex > 0 && <br />}
+          {parts}
+        </span>
+      );
     });
-
-    return (
-      <span key={i}>
-        {i > 0 && <br />}
-        {parts}
-      </span>
-    );
-  });
 }
 
-function buildMentorDisplayContent(response) {
-  // Build a rich display from the structured mentor response
-  const data = response?.data || {};
-  const parts = [];
-
-  if (data.reply) parts.push(data.reply);
-
-  if (data.question) {
-    parts.push(`\n\n**📝 Practice Question:**\n${data.question}`);
-    if (data.topic) parts.push(`\n**Topic:** ${data.topic}`);
+function buildRouteContext(pathname = "/") {
+  if (pathname.includes("/hr")) {
+    return {
+      routeLabel: "HR Round",
+      interviewType: "hr",
+      difficulty: "medium",
+      domain: "general",
+      defaultSkill: "Communication",
+      starterFocus: ["behavioral storytelling", "clarity"],
+    };
   }
 
-  if (data.explanation) {
-    parts.push(`\n\n**📖 Explanation:**\n${data.explanation}`);
+  if (pathname.includes("/technical")) {
+    return {
+      routeLabel: "Technical Round",
+      interviewType: "technical",
+      difficulty: "medium",
+      domain: "general",
+      defaultSkill: "JavaScript",
+      starterFocus: ["problem solving", "technical depth"],
+    };
   }
 
-  if (data.practicalExample) {
-    parts.push(`\n\n**🔧 Practical Example:**\n${data.practicalExample}`);
+  if (pathname.includes("/mock")) {
+    return {
+      routeLabel: "Mock Round",
+      interviewType: "technical",
+      difficulty: "medium",
+      domain: "general",
+      defaultSkill: "React.js",
+      starterFocus: ["communication", "delivery"],
+    };
   }
 
-  if (data.followUpQuestion) {
-    parts.push(`\n\n**🔄 Follow-up Question:**\n${data.followUpQuestion}`);
+  if (pathname.includes("/session")) {
+    return {
+      routeLabel: "Live Session",
+      interviewType: "technical",
+      difficulty: "medium",
+      domain: "general",
+      defaultSkill: "React.js",
+      starterFocus: ["answer improvement", "weak area coaching"],
+    };
   }
 
-  if (data.improvedAnswer) {
-    parts.push(`\n\n**✨ Improved Answer:**\n${data.improvedAnswer}`);
+  if (pathname.includes("/analytics")) {
+    return {
+      routeLabel: "Analytics",
+      interviewType: "technical",
+      difficulty: "medium",
+      domain: "general",
+      defaultSkill: "System Design",
+      starterFocus: ["weak area coaching", "score improvement"],
+    };
   }
 
-  if (Array.isArray(data.practiceGuidance) && data.practiceGuidance.length > 0) {
-    parts.push(`\n\n**📋 Practice Guidance:**`);
-    data.practiceGuidance.forEach((tip) => parts.push(`\n• ${tip}`));
+  if (pathname.includes("/dashboard")) {
+    return {
+      routeLabel: "Dashboard",
+      interviewType: "technical",
+      difficulty: "medium",
+      domain: "general",
+      defaultSkill: "React.js",
+      starterFocus: ["practice questions", "weak area coaching"],
+    };
   }
 
-  if (Array.isArray(data.improvementTips) && data.improvementTips.length > 0) {
-    parts.push(`\n\n**💡 Improvement Tips:**`);
-    data.improvementTips.forEach((tip) => parts.push(`\n• ${tip}`));
-  }
-
-  if (data.needsInput && Array.isArray(data.requiredFields)) {
-    parts.push(`\n\n**Required info:** ${data.requiredFields.join(", ")}`);
-  }
-
-  return parts.join("") || "I received your message but couldn't generate a detailed response. Please try again.";
+  return {
+    routeLabel: "Interview Prep",
+    interviewType: "technical",
+    difficulty: "medium",
+    domain: "general",
+    defaultSkill: "React.js",
+    starterFocus: ["practice questions", "concept explanations"],
+  };
 }
 
-// ==========================================
-// MESSAGE BUBBLE COMPONENT
-// ==========================================
+function buildStorageKey(authIdentity) {
+  const identityValue =
+    authIdentity?.email ||
+    authIdentity?.displayName ||
+    "guest";
+
+  return `${CHAT_STORAGE_PREFIX}:${slugifyLabel(identityValue) || "guest"}`;
+}
+
+function buildInitialDraft(routeContext, authIdentity) {
+  return {
+    skill: routeContext.defaultSkill || "React.js",
+    concept: routeContext.defaultSkill || "React.js",
+    question: "",
+    answer: "",
+    company: "",
+    focus: routeContext.starterFocus.join(", "),
+    difficulty: routeContext.difficulty,
+    interviewType: routeContext.interviewType,
+    domain:
+      normalizeText(authIdentity?.roleLabel).toLowerCase() || routeContext.domain,
+  };
+}
+
+function buildWelcomeMessage({ authIdentity, routeContext }) {
+  const name = authIdentity?.displayName?.split(" ")[0] || "there";
+  const isPersonalized = Boolean(authIdentity);
+
+  return {
+    role: "assistant",
+    content: isPersonalized
+      ? `Hi ${name}. I am your AI Interview Mentor. I can generate realistic questions, explain concepts in interview language, refine answers, and coach weak areas from your history.`
+      : "Hi. I am your AI Interview Mentor. In guest mode, I can still generate questions, explain concepts, review answers, and help you practice if you share a real skill, interview type, and difficulty.",
+    timestamp: Date.now(),
+    meta: {
+      isWelcome: true,
+      mode: isPersonalized ? "personalized" : "guest",
+      intent: "generate-question",
+      mentor: "system",
+    },
+    payload: {
+      explanation: `You are currently on the ${routeContext.routeLabel} surface, so I will keep coaching aligned with that flow.`,
+      practiceGuidance: isPersonalized
+        ? [
+            "Use the tool buttons to generate a question, explain a concept, refine an answer, or get weak-area coaching.",
+            "If you are already mid-interview, paste the exact question and your draft answer for targeted review.",
+            "If your analytics exist, I will bias the coaching toward weaker areas automatically.",
+          ]
+        : [
+            "Start with a valid skill such as React.js, Node.js, JavaScript, MongoDB, or System Design.",
+            "Tell me the interview type and difficulty so the question feels realistic.",
+            "If you want better answer feedback, send both the interview question and your answer.",
+          ],
+      improvementTips: routeContext.starterFocus.map((item) =>
+        `Focus on ${item} while you practice in this section.`,
+      ),
+      template: isPersonalized
+        ? null
+        : {
+            skill: routeContext.defaultSkill || "React.js",
+            interviewType: toTitleCase(routeContext.interviewType),
+            difficulty: toTitleCase(routeContext.difficulty),
+            company: "Google",
+          },
+    },
+  };
+}
+
+function buildQuickActions({ authIdentity, routeContext, profileSummary }) {
+  const weakArea = profileSummary?.weakAreas?.[0];
+  const resumeSkill = profileSummary?.resumeSkills?.[0] || routeContext.defaultSkill;
+
+  const actions = [
+    {
+      key: "practice-question",
+      title: "Practice question",
+      description: `Generate a ${routeContext.difficulty} ${routeContext.interviewType} question for ${resumeSkill || "your stack"}.`,
+      tool: "question",
+    },
+    {
+      key: "concept-explanation",
+      title: "Concept breakdown",
+      description: `Explain ${resumeSkill || "a core concept"} with trade-offs and real usage.`,
+      tool: "concept",
+    },
+    {
+      key: "answer-review",
+      title: "Answer review",
+      description: "Paste a real question and your answer to get realistic feedback.",
+      tool: "feedback",
+    },
+  ];
+
+  if (authIdentity) {
+    actions.push({
+      key: "weak-area",
+      title: "Weak-area plan",
+      description: weakArea
+        ? `Coach me on ${weakArea} with a focused practice loop.`
+        : "Create a personalized coaching plan from my history.",
+      tool: "coaching",
+    });
+  } else {
+    actions.push({
+      key: "guest-starter",
+      title: "Guest starter",
+      description: "Show me the exact format I should use in guest mode.",
+      message: "Skill: React.js Interview Type: Technical Difficulty: Medium Company: Google",
+    });
+  }
+
+  if (routeContext.routeLabel === "Live Session") {
+    actions.push({
+      key: "refine-live-answer",
+      title: "Refine live answer",
+      description: "Tighten an answer without changing its meaning before you submit it.",
+      tool: "improve",
+    });
+  }
+
+  return actions;
+}
+
+function buildStructuredSummary(toolKey, draft) {
+  const skillLabel = normalizeText(draft.skill || draft.concept) || "this topic";
+  const typeLabel = toTitleCase(draft.interviewType || "technical");
+  const difficultyLabel = toTitleCase(draft.difficulty || "medium");
+
+  if (toolKey === "question") {
+    return `Generate a ${difficultyLabel.toLowerCase()} ${typeLabel.toLowerCase()} interview question for ${skillLabel}${draft.company ? ` at ${normalizeText(draft.company)}` : ""}.`;
+  }
+
+  if (toolKey === "concept") {
+    return `Explain ${skillLabel} for a ${difficultyLabel.toLowerCase()} ${typeLabel.toLowerCase()} interview with practical trade-offs.`;
+  }
+
+  if (toolKey === "improve") {
+    return `Refine my answer for ${normalizeText(draft.skill) || "this question"} without changing its meaning.`;
+  }
+
+  if (toolKey === "feedback") {
+    return `Review my answer for ${normalizeText(draft.skill) || "this question"} like a real interviewer.`;
+  }
+
+  return `Create a coaching plan for ${normalizeText(draft.focus) || "my weakest topics"}.`;
+}
+
+function buildStructuredPayload(toolKey, draft, routeContext) {
+  const focus = parseList(draft.focus);
+  const commonPayload = {
+    difficulty: normalizeText(draft.difficulty) || routeContext.difficulty,
+    interviewType: normalizeText(draft.interviewType) || routeContext.interviewType,
+    domain: normalizeText(draft.domain) || routeContext.domain,
+    company: normalizeText(draft.company),
+    focus,
+  };
+
+  if (toolKey === "question") {
+    return {
+      intent: "generate-question",
+      skill: normalizeText(draft.skill),
+      skills: parseList(draft.skill),
+      message: buildStructuredSummary(toolKey, draft),
+      ...commonPayload,
+    };
+  }
+
+  if (toolKey === "concept") {
+    return {
+      intent: "explain-concept",
+      concept: normalizeText(draft.concept) || normalizeText(draft.skill),
+      skill: normalizeText(draft.skill),
+      skills: parseList(draft.skill),
+      message: buildStructuredSummary(toolKey, draft),
+      ...commonPayload,
+    };
+  }
+
+  if (toolKey === "improve") {
+    return {
+      intent: "improve-answer",
+      question: normalizeText(draft.question),
+      answer: draft.answer.trim(),
+      skill: normalizeText(draft.skill),
+      skills: parseList(draft.skill),
+      message: buildStructuredSummary(toolKey, draft),
+      ...commonPayload,
+    };
+  }
+
+  if (toolKey === "feedback") {
+    return {
+      intent: "answer-feedback",
+      question: normalizeText(draft.question),
+      answer: draft.answer.trim(),
+      skill: normalizeText(draft.skill),
+      skills: parseList(draft.skill),
+      message: buildStructuredSummary(toolKey, draft),
+      ...commonPayload,
+    };
+  }
+
+  return {
+    intent: "weak-area-coaching",
+    concept: normalizeText(draft.concept),
+    skill: normalizeText(draft.skill),
+    skills: parseList(draft.skill),
+    message: buildStructuredSummary(toolKey, draft),
+    ...commonPayload,
+  };
+}
+
+function serializeMessage(message) {
+  return {
+    role: message.role,
+    content: message.content,
+    timestamp: message.timestamp,
+    payload: message.payload || null,
+    meta: message.meta || null,
+    isError: Boolean(message.isError),
+  };
+}
+
+function deserializeMessages(rawValue, fallbackMessage) {
+  try {
+    const parsedValue = JSON.parse(rawValue);
+
+    if (!Array.isArray(parsedValue) || parsedValue.length === 0) {
+      return [fallbackMessage];
+    }
+
+    return parsedValue.map((message) => ({
+      role: message.role || "assistant",
+      content: message.content || "",
+      timestamp: Number(message.timestamp) || Date.now(),
+      payload: message.payload || null,
+      meta: message.meta || null,
+      isError: Boolean(message.isError),
+    }));
+  } catch {
+    return [fallbackMessage];
+  }
+}
+
+function normalizeMentorError(error) {
+  const rawMessage = normalizeText(error?.message || "Request failed");
+
+  if (/server initialization/i.test(rawMessage)) {
+    return "The mentor service is still starting up. Try again in a few seconds.";
+  }
+
+  if (/failed to fetch/i.test(rawMessage)) {
+    return "I could not reach the mentor backend. Check the deployment or your network and try again.";
+  }
+
+  return rawMessage || "Request failed";
+}
+
+function ToolBadge({ children, tone = "default" }) {
+  const styles = {
+    default: {
+      background: "rgba(255,255,255,0.07)",
+      color: "rgba(226,232,240,0.9)",
+      border: "1px solid rgba(255,255,255,0.08)",
+    },
+    primary: {
+      background: "rgba(59,130,246,0.12)",
+      color: "#93c5fd",
+      border: "1px solid rgba(59,130,246,0.24)",
+    },
+    success: {
+      background: "rgba(34,197,94,0.12)",
+      color: "#86efac",
+      border: "1px solid rgba(34,197,94,0.24)",
+    },
+    warning: {
+      background: "rgba(251,191,36,0.12)",
+      color: "#fde68a",
+      border: "1px solid rgba(251,191,36,0.24)",
+    },
+    danger: {
+      background: "rgba(239,68,68,0.12)",
+      color: "#fca5a5",
+      border: "1px solid rgba(239,68,68,0.24)",
+    },
+  };
+
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 6,
+        padding: "5px 9px",
+        borderRadius: 999,
+        fontSize: 10,
+        fontWeight: 700,
+        letterSpacing: "0.05em",
+        textTransform: "uppercase",
+        ...styles[tone],
+      }}
+    >
+      {children}
+    </span>
+  );
+}
+
+function SectionBlock({ title, value }) {
+  if (!normalizeText(value)) {
+    return null;
+  }
+
+  return (
+    <div
+      style={{
+        padding: "10px 12px",
+        borderRadius: 14,
+        background: "rgba(255,255,255,0.04)",
+        border: "1px solid rgba(255,255,255,0.08)",
+      }}
+    >
+      <div
+        style={{
+          fontSize: 10,
+          fontWeight: 700,
+          letterSpacing: "0.08em",
+          textTransform: "uppercase",
+          color: "rgba(148,163,184,0.95)",
+          marginBottom: 6,
+        }}
+      >
+        {title}
+      </div>
+      <div style={{ color: "#dbe6f4", fontSize: 12.5, lineHeight: 1.6 }}>
+        {parseMarkdownInline(value)}
+      </div>
+    </div>
+  );
+}
+
+function ListBlock({ title, items = [], tone = "primary" }) {
+  if (!Array.isArray(items) || items.length === 0) {
+    return null;
+  }
+
+  const toneMap = {
+    primary: "rgba(59,130,246,0.12)",
+    success: "rgba(34,197,94,0.12)",
+  };
+
+  return (
+    <div
+      style={{
+        padding: "10px 12px",
+        borderRadius: 14,
+        background: toneMap[tone] || "rgba(255,255,255,0.04)",
+        border: "1px solid rgba(255,255,255,0.08)",
+      }}
+    >
+      <div
+        style={{
+          fontSize: 10,
+          fontWeight: 700,
+          letterSpacing: "0.08em",
+          textTransform: "uppercase",
+          color: "rgba(148,163,184,0.95)",
+          marginBottom: 6,
+        }}
+      >
+        {title}
+      </div>
+      <ul
+        style={{
+          margin: 0,
+          paddingLeft: 16,
+          color: "#dbe6f4",
+          fontSize: 12.5,
+          lineHeight: 1.6,
+        }}
+      >
+        {items.map((item, index) => (
+          <li key={`${title}-${index}`} style={{ marginBottom: index === items.length - 1 ? 0 : 4 }}>
+            {item}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function TemplateBlock({ template }) {
+  if (!template || typeof template !== "object") {
+    return null;
+  }
+
+  const entries = Object.entries(template).filter(([, value]) => normalizeText(value));
+
+  if (entries.length === 0) {
+    return null;
+  }
+
+  return (
+    <div
+      style={{
+        padding: "10px 12px",
+        borderRadius: 14,
+        background: "rgba(15,23,42,0.65)",
+        border: "1px solid rgba(255,255,255,0.08)",
+      }}
+    >
+      <div
+        style={{
+          fontSize: 10,
+          fontWeight: 700,
+          letterSpacing: "0.08em",
+          textTransform: "uppercase",
+          color: "rgba(148,163,184,0.95)",
+          marginBottom: 8,
+        }}
+      >
+        Suggested format
+      </div>
+      <div style={{ display: "grid", gap: 6 }}>
+        {entries.map(([key, value]) => (
+          <div
+            key={key}
+            style={{
+              display: "grid",
+              gridTemplateColumns: "88px 1fr",
+              gap: 8,
+              fontSize: 12,
+            }}
+          >
+            <span style={{ color: "rgba(148,163,184,0.95)", fontWeight: 600 }}>
+              {toTitleCase(key)}
+            </span>
+            <span style={{ color: "#f8fafc" }}>{value}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ReviewCard({ review }) {
+  if (!review) {
+    return null;
+  }
+
+  return (
+    <div
+      style={{
+        padding: "12px 12px 14px",
+        borderRadius: 16,
+        background: "linear-gradient(180deg, rgba(59,130,246,0.12), rgba(15,23,42,0.35))",
+        border: "1px solid rgba(59,130,246,0.18)",
+        display: "grid",
+        gap: 10,
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+        <div>
+          <div
+            style={{
+              fontSize: 10,
+              fontWeight: 700,
+              letterSpacing: "0.08em",
+              textTransform: "uppercase",
+              color: "rgba(191,219,254,0.95)",
+              marginBottom: 4,
+            }}
+          >
+            Interview review
+          </div>
+          <div style={{ fontSize: 18, fontWeight: 800, color: "#fff" }}>
+            {Number.isFinite(review.score) ? `${review.score}/10` : "Scored"}
+          </div>
+        </div>
+        {review.confidence ? (
+          <ToolBadge tone="primary">{review.confidence} confidence</ToolBadge>
+        ) : null}
+      </div>
+      <SectionBlock title="Feedback" value={review.feedback} />
+      <SectionBlock title="Strength" value={review.strength} />
+      <SectionBlock title="Improvement" value={review.improvement} />
+      <SectionBlock title="Ideal answer" value={review.idealAnswer} />
+    </div>
+  );
+}
+
 function MessageBubble({ message }) {
   const isUser = message.role === "user";
+  const payload = message.payload || {};
+  const meta = message.meta || {};
+  const profile = meta.profile || {};
+  const fieldList = Array.isArray(payload.requiredFields) ? payload.requiredFields : [];
+  const invalidSkills = Array.isArray(payload.invalidSkills) ? payload.invalidSkills : [];
 
   return (
     <div
       style={{
         display: "flex",
         justifyContent: isUser ? "flex-end" : "flex-start",
-        marginBottom: 12,
+        marginBottom: 14,
         animation: "chatFadeIn 0.3s ease-out",
       }}
     >
       {!isUser && (
         <div
           style={{
-            width: 32,
-            height: 32,
+            width: 34,
+            height: 34,
             borderRadius: "50%",
-            background: "linear-gradient(135deg, #3b82f6, #06b6d4)",
+            background: message.isError
+              ? "linear-gradient(135deg, #ef4444, #f97316)"
+              : "linear-gradient(135deg, #3b82f6, #06b6d4)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -123,30 +754,113 @@ function MessageBubble({ message }) {
             marginTop: 2,
           }}
         >
-          🤖
+          {message.isError ? "!" : "AI"}
         </div>
       )}
       <div
         style={{
-          maxWidth: "82%",
-          padding: "10px 14px",
-          borderRadius: isUser ? "16px 16px 4px 16px" : "16px 16px 16px 4px",
+          maxWidth: "86%",
+          padding: isUser ? "12px 14px" : "12px 14px 14px",
+          borderRadius: isUser ? "18px 18px 6px 18px" : "18px 18px 18px 6px",
           background: isUser
             ? "linear-gradient(135deg, #3b82f6, #2563eb)"
             : "rgba(255,255,255,0.06)",
-          border: isUser ? "none" : "1px solid rgba(255,255,255,0.08)",
+          border: isUser
+            ? "none"
+            : message.isError
+              ? "1px solid rgba(239,68,68,0.28)"
+              : "1px solid rgba(255,255,255,0.08)",
           color: "#e2e8f0",
           fontSize: 13,
           lineHeight: 1.6,
           wordBreak: "break-word",
+          display: "grid",
+          gap: isUser ? 6 : 10,
         }}
       >
         <div>{parseMarkdownInline(message.content)}</div>
+
+        {!isUser && !message.isError ? (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {meta.mode ? (
+              <ToolBadge tone={meta.mode === "personalized" ? "success" : "default"}>
+                {meta.mode === "personalized" ? "Personalized" : "Guest"}
+              </ToolBadge>
+            ) : null}
+            {meta.intent ? (
+              <ToolBadge tone="primary">{formatIntentLabel(meta.intent)}</ToolBadge>
+            ) : null}
+            {meta.mentor ? (
+              <ToolBadge tone="warning">{formatMentorSource(meta.mentor)}</ToolBadge>
+            ) : null}
+          </div>
+        ) : null}
+
+        {!isUser && fieldList.length > 0 ? (
+          <ListBlock
+            title="Required input"
+            items={fieldList.map((field) => toTitleCase(field))}
+            tone="success"
+          />
+        ) : null}
+
+        {!isUser && invalidSkills.length > 0 ? (
+          <div
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              gap: 6,
+            }}
+          >
+            {invalidSkills.map((skill) => (
+              <ToolBadge key={skill} tone="danger">
+                Ignore: {skill}
+              </ToolBadge>
+            ))}
+          </div>
+        ) : null}
+
+        {!isUser && payload.question ? (
+          <SectionBlock title="Practice question" value={payload.question} />
+        ) : null}
+        {!isUser && payload.topic ? (
+          <SectionBlock title="Topic" value={payload.topic} />
+        ) : null}
+        {!isUser && payload.review ? <ReviewCard review={payload.review} /> : null}
+        {!isUser && payload.explanation ? (
+          <SectionBlock title="Explanation" value={payload.explanation} />
+        ) : null}
+        {!isUser && payload.practicalExample ? (
+          <SectionBlock title="Practical example" value={payload.practicalExample} />
+        ) : null}
+        {!isUser && payload.followUpQuestion ? (
+          <SectionBlock title="Follow-up question" value={payload.followUpQuestion} />
+        ) : null}
+        {!isUser && payload.improvedAnswer ? (
+          <SectionBlock title="Improved answer" value={payload.improvedAnswer} />
+        ) : null}
+        {!isUser && payload.template ? <TemplateBlock template={payload.template} /> : null}
+        {!isUser && payload.practiceGuidance ? (
+          <ListBlock title="Practice guidance" items={payload.practiceGuidance} tone="primary" />
+        ) : null}
+        {!isUser && payload.improvementTips ? (
+          <ListBlock title="Improvement tips" items={payload.improvementTips} tone="success" />
+        ) : null}
+        {!isUser && !message.isError && profile?.weakAreas?.length > 0 ? (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {profile.weakAreas.slice(0, 3).map((item) => (
+              <ToolBadge key={item} tone="warning">
+                Weak: {item}
+              </ToolBadge>
+            ))}
+          </div>
+        ) : null}
+
         <div
           style={{
             fontSize: 10,
-            color: isUser ? "rgba(255,255,255,0.6)" : "rgba(255,255,255,0.35)",
-            marginTop: 4,
+            color: isUser ? "rgba(255,255,255,0.64)" : "rgba(255,255,255,0.36)",
+            marginTop: isUser ? 2 : 0,
             textAlign: isUser ? "right" : "left",
           }}
         >
@@ -157,16 +871,13 @@ function MessageBubble({ message }) {
   );
 }
 
-// ==========================================
-// TYPING INDICATOR
-// ==========================================
 function TypingIndicator() {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
       <div
         style={{
-          width: 32,
-          height: 32,
+          width: 34,
+          height: 34,
           borderRadius: "50%",
           background: "linear-gradient(135deg, #3b82f6, #06b6d4)",
           display: "flex",
@@ -176,7 +887,7 @@ function TypingIndicator() {
           flexShrink: 0,
         }}
       >
-        🤖
+        AI
       </div>
       <div
         style={{
@@ -189,15 +900,15 @@ function TypingIndicator() {
           alignItems: "center",
         }}
       >
-        {[0, 1, 2].map((i) => (
+        {[0, 1, 2].map((index) => (
           <span
-            key={i}
+            key={index}
             style={{
               width: 7,
               height: 7,
               borderRadius: "50%",
               background: "#64748b",
-              animation: `typingDot 1.4s ease-in-out ${i * 0.2}s infinite`,
+              animation: `typingDot 1.4s ease-in-out ${index * 0.2}s infinite`,
             }}
           />
         ))}
@@ -206,18 +917,482 @@ function TypingIndicator() {
   );
 }
 
-// ==========================================
-// MAIN CHATBOT COMPONENT
-// ==========================================
+function ContextRibbon({ authIdentity, routeContext, profileSummary, isOnline }) {
+  const weakArea = profileSummary?.weakAreas?.[0];
+  const strongArea = profileSummary?.strongAreas?.[0];
+  const resumeSkill = profileSummary?.resumeSkills?.[0];
+  const averageScore = Number.isFinite(profileSummary?.averageScore)
+    ? Math.round(profileSummary.averageScore)
+    : null;
+
+  return (
+    <div
+      style={{
+        padding: "12px 14px 10px",
+        borderBottom: "1px solid rgba(255,255,255,0.06)",
+        display: "flex",
+        flexWrap: "wrap",
+        gap: 8,
+        background: "rgba(255,255,255,0.025)",
+      }}
+    >
+      <ToolBadge tone={authIdentity ? "success" : "default"}>
+        {authIdentity ? "Personalized mode" : "Guest mode"}
+      </ToolBadge>
+      <ToolBadge tone="primary">{routeContext.routeLabel}</ToolBadge>
+      <ToolBadge tone="default">{toTitleCase(routeContext.interviewType)}</ToolBadge>
+      <ToolBadge tone={isOnline ? "success" : "danger"}>
+        {isOnline ? "Online" : "Offline"}
+      </ToolBadge>
+      {averageScore !== null ? <ToolBadge tone="warning">Avg {averageScore}</ToolBadge> : null}
+      {resumeSkill ? <ToolBadge tone="primary">Stack {resumeSkill}</ToolBadge> : null}
+      {weakArea ? <ToolBadge tone="danger">Weak {weakArea}</ToolBadge> : null}
+      {strongArea ? <ToolBadge tone="success">Strong {strongArea}</ToolBadge> : null}
+    </div>
+  );
+}
+
+function ToolPicker({ activeTool, onSelect }) {
+  return (
+    <div
+      style={{
+        padding: "12px 14px 0",
+        display: "grid",
+        gridTemplateColumns: "repeat(5, minmax(0, 1fr))",
+        gap: 8,
+        flexShrink: 0,
+      }}
+    >
+      {TOOL_PRESETS.map((tool) => {
+        const isActive = activeTool === tool.key;
+
+        return (
+          <button
+            key={tool.key}
+            type="button"
+            onClick={() => onSelect(isActive ? "chat" : tool.key)}
+            style={{
+              borderRadius: 14,
+              border: isActive
+                ? "1px solid rgba(59,130,246,0.38)"
+                : "1px solid rgba(255,255,255,0.08)",
+              background: isActive
+                ? "linear-gradient(180deg, rgba(59,130,246,0.18), rgba(15,23,42,0.3))"
+                : "rgba(255,255,255,0.03)",
+              color: isActive ? "#dbeafe" : "#cbd5e1",
+              padding: "10px 8px",
+              cursor: "pointer",
+              display: "grid",
+              gap: 4,
+              justifyItems: "center",
+              minHeight: 68,
+            }}
+          >
+            <span
+              style={{
+                width: 28,
+                height: 28,
+                borderRadius: 10,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                background: isActive ? "rgba(59,130,246,0.18)" : "rgba(255,255,255,0.05)",
+                fontSize: 12,
+                fontWeight: 800,
+              }}
+            >
+              {tool.icon}
+            </span>
+            <span style={{ fontSize: 11, fontWeight: 700 }}>{tool.label}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function Field({ label, value, onChange, placeholder }) {
+  return (
+    <label style={{ display: "grid", gap: 6 }}>
+      <span
+        style={{
+          color: "rgba(203,213,225,0.9)",
+          fontSize: 11,
+          fontWeight: 700,
+          letterSpacing: "0.04em",
+          textTransform: "uppercase",
+        }}
+      >
+        {label}
+      </span>
+      <input
+        type="text"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
+        style={{
+          width: "100%",
+          padding: "10px 12px",
+          borderRadius: 12,
+          border: "1px solid rgba(255,255,255,0.1)",
+          background: "rgba(255,255,255,0.05)",
+          color: "#e2e8f0",
+          fontSize: 12.5,
+          outline: "none",
+        }}
+      />
+    </label>
+  );
+}
+
+function SelectField({ label, value, onChange, options }) {
+  return (
+    <label style={{ display: "grid", gap: 6 }}>
+      <span
+        style={{
+          color: "rgba(203,213,225,0.9)",
+          fontSize: 11,
+          fontWeight: 700,
+          letterSpacing: "0.04em",
+          textTransform: "uppercase",
+        }}
+      >
+        {label}
+      </span>
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        style={{
+          width: "100%",
+          padding: "10px 12px",
+          borderRadius: 12,
+          border: "1px solid rgba(255,255,255,0.1)",
+          background: "rgba(255,255,255,0.05)",
+          color: "#e2e8f0",
+          fontSize: 12.5,
+          outline: "none",
+        }}
+      >
+        {options.map((option) => (
+          <option key={option.value} value={option.value} style={{ color: "#0f172a" }}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+function TextAreaField({ label, value, onChange, placeholder, minHeight = 92 }) {
+  return (
+    <label style={{ display: "grid", gap: 6 }}>
+      <span
+        style={{
+          color: "rgba(203,213,225,0.9)",
+          fontSize: 11,
+          fontWeight: 700,
+          letterSpacing: "0.04em",
+          textTransform: "uppercase",
+        }}
+      >
+        {label}
+      </span>
+      <textarea
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
+        style={{
+          width: "100%",
+          minHeight,
+          resize: "vertical",
+          padding: "10px 12px",
+          borderRadius: 12,
+          border: "1px solid rgba(255,255,255,0.1)",
+          background: "rgba(255,255,255,0.05)",
+          color: "#e2e8f0",
+          fontSize: 12.5,
+          outline: "none",
+          lineHeight: 1.5,
+        }}
+      />
+    </label>
+  );
+}
+
+function ToolWorkbench({
+  activeTool,
+  draft,
+  routeContext,
+  authIdentity,
+  isLoading,
+  onChange,
+  onClose,
+  onSubmit,
+}) {
+  if (activeTool === "chat") {
+    return null;
+  }
+
+  const tool = TOOL_PRESETS.find((item) => item.key === activeTool);
+  if (!tool) {
+    return null;
+  }
+
+  return (
+    <div
+      style={{
+        padding: "12px 14px 10px",
+        borderBottom: "1px solid rgba(255,255,255,0.06)",
+        display: "grid",
+        gap: 10,
+        flexShrink: 0,
+      }}
+    >
+      <div
+        style={{
+          padding: "12px 12px 10px",
+          borderRadius: 16,
+          background: "rgba(255,255,255,0.03)",
+          border: "1px solid rgba(255,255,255,0.08)",
+          display: "grid",
+          gap: 10,
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "start", justifyContent: "space-between", gap: 10 }}>
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 800, color: "#fff", marginBottom: 4 }}>
+              {tool.title}
+            </div>
+            <div style={{ color: "rgba(203,213,225,0.8)", fontSize: 12.5, lineHeight: 1.55 }}>
+              {tool.description}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              width: 28,
+              height: 28,
+              borderRadius: 10,
+              border: "1px solid rgba(255,255,255,0.08)",
+              background: "rgba(255,255,255,0.04)",
+              color: "rgba(255,255,255,0.55)",
+              cursor: "pointer",
+              flexShrink: 0,
+            }}
+          >
+            ×
+          </button>
+        </div>
+
+        {activeTool === "question" ? (
+          <>
+            <Field
+              label="Skill or technologies"
+              value={draft.skill}
+              onChange={(value) => onChange("skill", value)}
+              placeholder={routeContext.defaultSkill || "React.js, Redux Toolkit"}
+            />
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+              <SelectField
+                label="Interview type"
+                value={draft.interviewType}
+                onChange={(value) => onChange("interviewType", value)}
+                options={INTERVIEW_TYPE_OPTIONS}
+              />
+              <SelectField
+                label="Difficulty"
+                value={draft.difficulty}
+                onChange={(value) => onChange("difficulty", value)}
+                options={DIFFICULTY_OPTIONS}
+              />
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+              <Field
+                label="Company"
+                value={draft.company}
+                onChange={(value) => onChange("company", value)}
+                placeholder="Google, Amazon, Startup"
+              />
+              <Field
+                label="Focus areas"
+                value={draft.focus}
+                onChange={(value) => onChange("focus", value)}
+                placeholder="state management, performance"
+              />
+            </div>
+          </>
+        ) : null}
+
+        {activeTool === "concept" ? (
+          <>
+            <Field
+              label="Concept"
+              value={draft.concept}
+              onChange={(value) => onChange("concept", value)}
+              placeholder="Closures, memoization, system design caching"
+            />
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+              <Field
+                label="Skill context"
+                value={draft.skill}
+                onChange={(value) => onChange("skill", value)}
+                placeholder="React.js, Node.js"
+              />
+              <Field
+                label="Focus areas"
+                value={draft.focus}
+                onChange={(value) => onChange("focus", value)}
+                placeholder="performance, real-world use"
+              />
+            </div>
+          </>
+        ) : null}
+
+        {activeTool === "improve" ? (
+          <>
+            <TextAreaField
+              label="Original answer"
+              value={draft.answer}
+              onChange={(value) => onChange("answer", value)}
+              placeholder="Paste the answer you want to improve..."
+              minHeight={96}
+            />
+            <TextAreaField
+              label="Question (optional)"
+              value={draft.question}
+              onChange={(value) => onChange("question", value)}
+              placeholder="Paste the interviewer question for tighter refinement..."
+              minHeight={74}
+            />
+            <Field
+              label="Skill"
+              value={draft.skill}
+              onChange={(value) => onChange("skill", value)}
+              placeholder="React.js, System Design"
+            />
+          </>
+        ) : null}
+
+        {activeTool === "feedback" ? (
+          <>
+            <TextAreaField
+              label="Interview question"
+              value={draft.question}
+              onChange={(value) => onChange("question", value)}
+              placeholder="Paste the actual interview question..."
+              minHeight={74}
+            />
+            <TextAreaField
+              label="Your answer"
+              value={draft.answer}
+              onChange={(value) => onChange("answer", value)}
+              placeholder="Paste your answer for realistic scoring..."
+              minHeight={96}
+            />
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+              <Field
+                label="Skill"
+                value={draft.skill}
+                onChange={(value) => onChange("skill", value)}
+                placeholder="React.js"
+              />
+              <SelectField
+                label="Difficulty"
+                value={draft.difficulty}
+                onChange={(value) => onChange("difficulty", value)}
+                options={DIFFICULTY_OPTIONS}
+              />
+            </div>
+          </>
+        ) : null}
+
+        {activeTool === "coaching" ? (
+          <>
+            <Field
+              label={authIdentity ? "Weak area or target topic" : "Practice topic"}
+              value={draft.focus}
+              onChange={(value) => onChange("focus", value)}
+              placeholder={authIdentity ? "Redux performance, system design" : "React performance"}
+            />
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+              <Field
+                label="Skill context"
+                value={draft.skill}
+                onChange={(value) => onChange("skill", value)}
+                placeholder="React.js, Node.js"
+              />
+              <Field
+                label="Company"
+                value={draft.company}
+                onChange={(value) => onChange("company", value)}
+                placeholder="Optional"
+              />
+            </div>
+          </>
+        ) : null}
+
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+          <div style={{ color: "rgba(148,163,184,0.92)", fontSize: 11.5 }}>
+            {authIdentity
+              ? "Personalized mode will use your history and weak areas when possible."
+              : "Guest mode works best when you provide a real skill, round, and difficulty."}
+          </div>
+          <button
+            type="button"
+            onClick={onSubmit}
+            disabled={isLoading}
+            style={{
+              padding: "10px 14px",
+              borderRadius: 12,
+              border: "none",
+              background: "linear-gradient(135deg, #3b82f6, #06b6d4)",
+              color: "#fff",
+              fontSize: 12,
+              fontWeight: 800,
+              cursor: isLoading ? "not-allowed" : "pointer",
+              opacity: isLoading ? 0.65 : 1,
+              flexShrink: 0,
+            }}
+          >
+            {isLoading ? "Thinking..." : "Run mentor"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function ChatBotIcon() {
+  const { pathname } = useLocation();
+  const routeContext = useMemo(() => buildRouteContext(pathname), [pathname]);
+  const [authIdentity, setAuthIdentity] = useState(() =>
+    getAuthIdentity(getStoredAuthSession()),
+  );
   const [isOpen, setIsOpen] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
-  const [messages, setMessages] = useState([WELCOME_MESSAGE]);
-  const [inputValue, setInputValue] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [hasUnread, setHasUnread] = useState(false);
+  const [inputValue, setInputValue] = useState("");
+  const [activeTool, setActiveTool] = useState("chat");
+  const [isOnline, setIsOnline] = useState(
+    typeof navigator === "undefined" ? true : navigator.onLine,
+  );
+  const [draft, setDraft] = useState(() => buildInitialDraft(routeContext, authIdentity));
+  const [profileSummary, setProfileSummary] = useState(null);
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
+  const storageKey = useMemo(() => buildStorageKey(authIdentity), [authIdentity]);
+  const welcomeMessage = useMemo(
+    () => buildWelcomeMessage({ authIdentity, routeContext }),
+    [authIdentity, routeContext],
+  );
+  const [messages, setMessages] = useState([welcomeMessage]);
+
+  const quickActions = useMemo(
+    () => buildQuickActions({ authIdentity, routeContext, profileSummary }),
+    [authIdentity, routeContext, profileSummary],
+  );
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -233,117 +1408,268 @@ export default function ChatBotIcon() {
     }
   }, [isOpen]);
 
-  const sendMessage = useCallback(
-    async (text) => {
-      const trimmed = (text || "").trim();
-      if (!trimmed || isLoading) return;
+  useEffect(() => {
+    const syncAuthState = () => {
+      setAuthIdentity(getAuthIdentity(getStoredAuthSession()));
+    };
 
-      const userMsg = {
-        role: "user",
-        content: trimmed,
-        timestamp: Date.now(),
-      };
+    window.addEventListener(AUTH_SESSION_UPDATED_EVENT, syncAuthState);
+    window.addEventListener(AUTH_EXPIRED_EVENT, syncAuthState);
 
-      setMessages((prev) => [...prev, userMsg]);
-      setInputValue("");
-      setIsLoading(true);
+    return () => {
+      window.removeEventListener(AUTH_SESSION_UPDATED_EVENT, syncAuthState);
+      window.removeEventListener(AUTH_EXPIRED_EVENT, syncAuthState);
+    };
+  }, []);
 
-      try {
-        const response = await requestInterviewMentor({
-          message: trimmed,
-          intent: "",
-        });
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
 
-        const content = buildMentorDisplayContent(response);
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
 
-        const assistantMsg = {
-          role: "assistant",
-          content,
-          timestamp: Date.now(),
-          rawResponse: response,
-        };
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, []);
 
-        setMessages((prev) => [...prev, assistantMsg]);
+  useEffect(() => {
+    const storedValue = localStorage.getItem(storageKey);
+    const restoredMessages = storedValue
+      ? deserializeMessages(storedValue, welcomeMessage)
+      : [welcomeMessage];
 
-        if (!isOpen) {
-          setHasUnread(true);
-        }
-      } catch (error) {
-        const errorMsg = {
-          role: "assistant",
-          content: `⚠️ ${error.message || "Something went wrong. Please try again."}`,
-          timestamp: Date.now(),
-          isError: true,
-        };
-        setMessages((prev) => [...prev, errorMsg]);
-      } finally {
-        setIsLoading(false);
+    setMessages(restoredMessages);
+
+    const latestProfileMessage = [...restoredMessages]
+      .reverse()
+      .find((message) => message?.meta?.profile);
+
+    setProfileSummary(latestProfileMessage?.meta?.profile || null);
+  }, [storageKey, welcomeMessage]);
+
+  useEffect(() => {
+    localStorage.setItem(
+      storageKey,
+      JSON.stringify(messages.slice(-MAX_STORED_MESSAGES).map(serializeMessage)),
+    );
+  }, [messages, storageKey]);
+
+  useEffect(() => {
+    setDraft((previous) => ({
+      ...previous,
+      skill: previous.skill || routeContext.defaultSkill,
+      concept: previous.concept || routeContext.defaultSkill,
+      focus: previous.focus || routeContext.starterFocus.join(", "),
+      difficulty: previous.difficulty || routeContext.difficulty,
+      interviewType: previous.interviewType || routeContext.interviewType,
+      domain: previous.domain || routeContext.domain,
+    }));
+  }, [routeContext]);
+
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape" && isOpen) {
+        setIsOpen(false);
       }
-    },
-    [isLoading, isOpen],
-  );
+    };
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    sendMessage(inputValue);
-  };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen]);
 
-  const handleQuickPrompt = (promptText) => {
-    sendMessage(promptText);
-  };
+  const appendAssistantMessage = useCallback((response) => {
+    const assistantMessage = {
+      role: "assistant",
+      content:
+        normalizeText(response?.data?.reply) ||
+        "I received your request, but the response was empty.",
+      timestamp: Date.now(),
+      payload: response?.data || null,
+      meta: {
+        mode: response?.mode || "",
+        intent: response?.intent || "",
+        mentor: response?.mentor || "",
+        profile: response?.profile || null,
+      },
+    };
 
-  const toggleChat = () => {
-    setIsOpen((prev) => !prev);
-    setHasUnread(false);
-  };
+    setMessages((previous) => [...previous, assistantMessage]);
 
-  const clearChat = () => {
-    setMessages([
+    if (response?.profile) {
+      setProfileSummary(response.profile);
+    }
+
+    if (!isOpen) {
+      setHasUnread(true);
+    }
+  }, [isOpen]);
+
+  const appendErrorMessage = useCallback((error) => {
+    const assistantMessage = {
+      role: "assistant",
+      content: `I hit a problem: ${normalizeMentorError(error)}`,
+      timestamp: Date.now(),
+      isError: true,
+    };
+
+    setMessages((previous) => [...previous, assistantMessage]);
+
+    if (!isOpen) {
+      setHasUnread(true);
+    }
+  }, [isOpen]);
+
+  const sendMentorRequest = useCallback(async ({ payload, userContent, resetComposer = false }) => {
+    const trimmedUserContent = normalizeText(userContent);
+
+    if (!trimmedUserContent || isLoading) {
+      return;
+    }
+
+    setMessages((previous) => [
+      ...previous,
       {
-        ...WELCOME_MESSAGE,
+        role: "user",
+        content: trimmedUserContent,
         timestamp: Date.now(),
-        content: "🔄 Chat cleared! How can I help you with your interview preparation?",
       },
     ]);
-  };
 
-  const session = getStoredAuthSession();
-  const userName =
-    session?.user?.firstName ||
-    session?.user?.name?.split(" ")[0] ||
-    "there";
+    if (resetComposer) {
+      setInputValue("");
+    }
+
+    setIsLoading(true);
+
+    try {
+      const response = await requestInterviewMentor(payload);
+      appendAssistantMessage(response);
+    } catch (error) {
+      appendErrorMessage(error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [appendAssistantMessage, appendErrorMessage, isLoading]);
+
+  const handleFreeformSubmit = useCallback(async (event) => {
+    event.preventDefault();
+
+    const trimmedInput = normalizeText(inputValue);
+    if (!trimmedInput) {
+      return;
+    }
+
+    const tool = TOOL_PRESETS.find((item) => item.key === activeTool);
+    const payload = {
+      message: trimmedInput,
+      company: normalizeText(draft.company),
+      difficulty: normalizeText(draft.difficulty) || routeContext.difficulty,
+      interviewType: normalizeText(draft.interviewType) || routeContext.interviewType,
+      domain: normalizeText(draft.domain) || routeContext.domain,
+      focus: parseList(draft.focus),
+      skill: normalizeText(draft.skill),
+      skills: parseList(draft.skill),
+      concept: activeTool === "concept" ? normalizeText(draft.concept) : "",
+      question: ["feedback", "improve"].includes(activeTool)
+        ? normalizeText(draft.question)
+        : "",
+      answer: ["feedback", "improve"].includes(activeTool) ? draft.answer.trim() : "",
+      intent: tool ? tool.intent : "",
+    };
+
+    await sendMentorRequest({
+      payload,
+      userContent: trimmedInput,
+      resetComposer: true,
+    });
+  }, [activeTool, draft, inputValue, routeContext, sendMentorRequest]);
+
+  const handleStructuredSubmit = useCallback(async () => {
+    const payload = buildStructuredPayload(activeTool, draft, routeContext);
+    const userContent = buildStructuredSummary(activeTool, draft);
+
+    await sendMentorRequest({
+      payload,
+      userContent,
+    });
+  }, [activeTool, draft, routeContext, sendMentorRequest]);
+
+  const handleQuickAction = useCallback(async (action) => {
+    if (action.message) {
+      setInputValue(action.message);
+      return;
+    }
+
+    if (action.tool) {
+      setActiveTool(action.tool);
+
+      if (action.tool === "question" && !normalizeText(draft.skill)) {
+        setDraft((previous) => ({
+          ...previous,
+          skill: routeContext.defaultSkill,
+        }));
+      }
+    }
+  }, [draft.skill, routeContext.defaultSkill]);
+
+  const handleDraftChange = useCallback((field, value) => {
+    setDraft((previous) => ({
+      ...previous,
+      [field]: value,
+    }));
+  }, []);
+
+  const clearChat = useCallback(() => {
+    const nextWelcomeMessage = buildWelcomeMessage({ authIdentity, routeContext });
+    setMessages([
+      {
+        ...nextWelcomeMessage,
+        timestamp: Date.now(),
+        content: authIdentity
+          ? "Chat cleared. I am ready to continue with personalized interview coaching."
+          : "Chat cleared. Share a skill, interview type, and difficulty and I will coach from there.",
+      },
+    ]);
+    setProfileSummary(null);
+    setInputValue("");
+    setActiveTool("chat");
+  }, [authIdentity, routeContext]);
+
+  const toggleChat = useCallback(() => {
+    setIsOpen((previous) => !previous);
+    setHasUnread(false);
+  }, []);
 
   return (
     <>
-      {/* ============ CHAT PANEL ============ */}
       <div
         id="chatbot-panel"
         style={{
           position: "fixed",
-          bottom: isOpen ? 96 : 80,
+          bottom: isOpen ? 96 : 82,
           right: 24,
-          width: 400,
-          maxWidth: "calc(100vw - 48px)",
-          height: isOpen ? "min(580px, calc(100vh - 140px))" : "0px",
+          width: PANEL_WIDTH,
+          maxWidth: "calc(100vw - 32px)",
+          height: isOpen ? "min(720px, calc(100vh - 132px))" : "0px",
           opacity: isOpen ? 1 : 0,
           transform: isOpen ? "scale(1) translateY(0)" : "scale(0.92) translateY(16px)",
           transformOrigin: "bottom right",
           transition: "all 0.35s cubic-bezier(0.4, 0, 0.2, 1)",
           zIndex: 99,
-          borderRadius: 20,
+          borderRadius: 24,
           overflow: "hidden",
           pointerEvents: isOpen ? "auto" : "none",
           display: "flex",
           flexDirection: "column",
-          background:
-            "linear-gradient(180deg, rgba(15,23,42,0.97), rgba(10,15,30,0.98))",
+          background: "linear-gradient(180deg, rgba(15,23,42,0.985), rgba(8,12,24,0.99))",
           border: "1px solid rgba(255,255,255,0.1)",
-          boxShadow:
-            "0 25px 70px rgba(0,0,0,0.5), 0 0 40px rgba(59,130,246,0.1)",
-          backdropFilter: "blur(24px)",
+          boxShadow: "0 28px 90px rgba(0,0,0,0.58), 0 0 40px rgba(59,130,246,0.12)",
+          backdropFilter: "blur(28px)",
         }}
       >
-        {/* Header */}
         <div
           style={{
             padding: "16px 18px",
@@ -351,43 +1677,39 @@ export default function ChatBotIcon() {
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
+            gap: 12,
             background: "rgba(255,255,255,0.03)",
             flexShrink: 0,
           }}
         >
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <div
               style={{
-                width: 36,
-                height: 36,
+                width: 38,
+                height: 38,
                 borderRadius: "50%",
                 background: "linear-gradient(135deg, #3b82f6, #06b6d4)",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                fontSize: 18,
+                fontSize: 16,
+                fontWeight: 800,
+                color: "#fff",
               }}
             >
-              🤖
+              AI
             </div>
             <div>
-              <div
-                style={{
-                  fontSize: 14,
-                  fontWeight: 700,
-                  color: "#fff",
-                  lineHeight: 1.2,
-                }}
-              >
+              <div style={{ fontSize: 15, fontWeight: 800, color: "#fff", lineHeight: 1.2 }}>
                 AI Interview Mentor
               </div>
               <div
                 style={{
                   fontSize: 11,
-                  color: "#4ade80",
+                  color: isOnline ? "#4ade80" : "#fca5a5",
                   display: "flex",
                   alignItems: "center",
-                  gap: 4,
+                  gap: 6,
                 }}
               >
                 <span
@@ -395,11 +1717,11 @@ export default function ChatBotIcon() {
                     width: 6,
                     height: 6,
                     borderRadius: "50%",
-                    background: "#22c55e",
+                    background: isOnline ? "#22c55e" : "#ef4444",
                     display: "inline-block",
                   }}
                 />
-                Online
+                {authIdentity ? `Coaching ${authIdentity.displayName}` : "Guest mentoring"}
               </div>
             </div>
           </div>
@@ -410,225 +1732,212 @@ export default function ChatBotIcon() {
               style={{
                 width: 32,
                 height: 32,
-                borderRadius: 8,
+                borderRadius: 10,
                 border: "1px solid rgba(255,255,255,0.08)",
                 background: "rgba(255,255,255,0.04)",
                 color: "rgba(255,255,255,0.5)",
                 cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
                 fontSize: 14,
-                transition: "all 0.2s",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = "rgba(255,255,255,0.1)";
-                e.currentTarget.style.color = "#fff";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = "rgba(255,255,255,0.04)";
-                e.currentTarget.style.color = "rgba(255,255,255,0.5)";
               }}
             >
-              🗑
+              ↺
             </button>
             <button
               onClick={toggleChat}
-              title="Close chat"
+              title="Close mentor"
               style={{
                 width: 32,
                 height: 32,
-                borderRadius: 8,
+                borderRadius: 10,
                 border: "1px solid rgba(255,255,255,0.08)",
                 background: "rgba(255,255,255,0.04)",
                 color: "rgba(255,255,255,0.5)",
                 cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
                 fontSize: 16,
-                transition: "all 0.2s",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = "rgba(255,255,255,0.1)";
-                e.currentTarget.style.color = "#fff";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = "rgba(255,255,255,0.04)";
-                e.currentTarget.style.color = "rgba(255,255,255,0.5)";
               }}
             >
-              ✕
+              ×
             </button>
           </div>
         </div>
 
-        {/* Messages Area */}
+        <ContextRibbon
+          authIdentity={authIdentity}
+          routeContext={routeContext}
+          profileSummary={profileSummary}
+          isOnline={isOnline}
+        />
+
+        <ToolPicker activeTool={activeTool} onSelect={setActiveTool} />
+
+        <ToolWorkbench
+          activeTool={activeTool}
+          draft={draft}
+          routeContext={routeContext}
+          authIdentity={authIdentity}
+          isLoading={isLoading}
+          onChange={handleDraftChange}
+          onClose={() => setActiveTool("chat")}
+          onSubmit={handleStructuredSubmit}
+        />
+
         <div
           style={{
             flex: 1,
             overflowY: "auto",
-            padding: "16px 14px",
+            padding: "16px 14px 12px",
             scrollbarWidth: "thin",
             scrollbarColor: "rgba(255,255,255,0.1) transparent",
           }}
         >
-          {messages.map((msg, idx) => (
-            <MessageBubble key={idx} message={msg} />
+          {messages.map((message, index) => (
+            <MessageBubble key={`${message.timestamp}-${index}`} message={message} />
           ))}
           {isLoading && <TypingIndicator />}
+
+          {messages.length <= 2 && !isLoading ? (
+            <div
+              style={{
+                display: "grid",
+                gap: 10,
+                marginTop: 4,
+              }}
+            >
+              <div
+                style={{
+                  fontSize: 11,
+                  fontWeight: 800,
+                  letterSpacing: "0.08em",
+                  textTransform: "uppercase",
+                  color: "rgba(148,163,184,0.95)",
+                }}
+              >
+                Smart actions
+              </div>
+              <div style={{ display: "grid", gap: 8 }}>
+                {quickActions.map((action) => (
+                  <button
+                    key={action.key}
+                    type="button"
+                    onClick={() => handleQuickAction(action)}
+                    style={{
+                      textAlign: "left",
+                      padding: "12px 13px",
+                      borderRadius: 16,
+                      border: "1px solid rgba(255,255,255,0.08)",
+                      background: "rgba(255,255,255,0.035)",
+                      color: "#e2e8f0",
+                      cursor: "pointer",
+                      display: "grid",
+                      gap: 4,
+                    }}
+                  >
+                    <span style={{ fontSize: 13, fontWeight: 800, color: "#fff" }}>
+                      {action.title}
+                    </span>
+                    <span style={{ fontSize: 12, color: "rgba(203,213,225,0.84)", lineHeight: 1.55 }}>
+                      {action.description}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Quick Prompts (only show when few messages) */}
-        {messages.length <= 1 && !isLoading && (
-          <div
-            style={{
-              padding: "0 14px 10px",
-              display: "flex",
-              gap: 6,
-              flexWrap: "wrap",
-              flexShrink: 0,
-            }}
-          >
-            {QUICK_PROMPTS.map((prompt) => (
-              <button
-                key={prompt.label}
-                onClick={() => handleQuickPrompt(prompt.message)}
-                style={{
-                  padding: "6px 12px",
-                  borderRadius: 20,
-                  border: "1px solid rgba(59,130,246,0.25)",
-                  background: "rgba(59,130,246,0.08)",
-                  color: "#93c5fd",
-                  fontSize: 11,
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  transition: "all 0.2s",
-                  whiteSpace: "nowrap",
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = "rgba(59,130,246,0.18)";
-                  e.currentTarget.style.borderColor = "rgba(59,130,246,0.4)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = "rgba(59,130,246,0.08)";
-                  e.currentTarget.style.borderColor = "rgba(59,130,246,0.25)";
-                }}
-              >
-                {prompt.label}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {/* Input Area */}
         <form
-          onSubmit={handleSubmit}
+          onSubmit={handleFreeformSubmit}
           style={{
             padding: "12px 14px",
             borderTop: "1px solid rgba(255,255,255,0.08)",
-            display: "flex",
-            gap: 8,
-            alignItems: "center",
+            display: "grid",
+            gap: 10,
             background: "rgba(255,255,255,0.02)",
             flexShrink: 0,
           }}
         >
-          <input
-            ref={inputRef}
-            type="text"
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            placeholder={`Ask anything about interviews...`}
-            disabled={isLoading}
+          <div
             style={{
-              flex: 1,
-              padding: "10px 14px",
-              borderRadius: 12,
-              border: "1px solid rgba(255,255,255,0.1)",
-              background: "rgba(255,255,255,0.05)",
-              color: "#e2e8f0",
-              fontSize: 13,
-              outline: "none",
-              transition: "border-color 0.2s",
-            }}
-            onFocus={(e) => {
-              e.target.style.borderColor = "rgba(59,130,246,0.5)";
-            }}
-            onBlur={(e) => {
-              e.target.style.borderColor = "rgba(255,255,255,0.1)";
-            }}
-          />
-          <button
-            type="submit"
-            disabled={!inputValue.trim() || isLoading}
-            style={{
-              width: 40,
-              height: 40,
-              borderRadius: 12,
-              border: "none",
-              background:
-                inputValue.trim() && !isLoading
-                  ? "linear-gradient(135deg, #3b82f6, #06b6d4)"
-                  : "rgba(255,255,255,0.06)",
-              color:
-                inputValue.trim() && !isLoading
-                  ? "#fff"
-                  : "rgba(255,255,255,0.3)",
-              cursor:
-                inputValue.trim() && !isLoading ? "pointer" : "not-allowed",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: 18,
-              transition: "all 0.25s",
-              flexShrink: 0,
+              color: "rgba(148,163,184,0.95)",
+              fontSize: 11.5,
+              lineHeight: 1.5,
             }}
           >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
+            {activeTool === "chat"
+              ? "Type naturally. I will infer whether you need a question, concept explanation, answer review, or coaching."
+              : `Freeform mode is still active, but the current tool is ${formatIntentLabel(
+                  TOOL_PRESETS.find((tool) => tool.key === activeTool)?.intent || "",
+                )}.`}
+          </div>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <input
+              ref={inputRef}
+              type="text"
+              value={inputValue}
+              onChange={(event) => setInputValue(event.target.value)}
+              placeholder="Ask anything about interviews, weak areas, answers, or concepts..."
+              disabled={isLoading}
+              style={{
+                flex: 1,
+                padding: "12px 14px",
+                borderRadius: 14,
+                border: "1px solid rgba(255,255,255,0.1)",
+                background: "rgba(255,255,255,0.05)",
+                color: "#e2e8f0",
+                fontSize: 13,
+                outline: "none",
+              }}
+            />
+            <button
+              type="submit"
+              disabled={!normalizeText(inputValue) || isLoading}
+              style={{
+                width: 44,
+                height: 44,
+                borderRadius: 14,
+                border: "none",
+                background: normalizeText(inputValue) && !isLoading
+                  ? "linear-gradient(135deg, #3b82f6, #06b6d4)"
+                  : "rgba(255,255,255,0.06)",
+                color: normalizeText(inputValue) && !isLoading
+                  ? "#fff"
+                  : "rgba(255,255,255,0.3)",
+                cursor: normalizeText(inputValue) && !isLoading ? "pointer" : "not-allowed",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: 18,
+                flexShrink: 0,
+              }}
             >
-              <line x1="22" y1="2" x2="11" y2="13" />
-              <polygon points="22 2 15 22 11 13 2 9 22 2" />
-            </svg>
-          </button>
+              ↗
+            </button>
+          </div>
         </form>
       </div>
 
-      {/* ============ FAB BUTTON ============ */}
       <div
         id="chatbot-fab"
         className="fixed bottom-6 right-6 z-[100] flex flex-col items-end gap-3"
       >
-        {/* Tooltip (only when closed) */}
-        {!isOpen && (
+        {!isOpen ? (
           <div
             style={{
               opacity: isHovered ? 1 : 0,
-              transform: isHovered
-                ? "translateY(0) scale(1)"
-                : "translateY(8px) scale(0.9)",
+              transform: isHovered ? "translateY(0) scale(1)" : "translateY(8px) scale(0.92)",
               transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
               pointerEvents: "none",
             }}
             className="rounded-xl bg-slate-900/90 px-4 py-2 text-sm font-medium text-white shadow-lg backdrop-blur-md border border-white/10"
           >
-            Chat with AI Mentor 🤖
+            Open AI Interview Mentor
           </div>
-        )}
+        ) : null}
 
-        {/* FAB Button */}
         <button
-          aria-label={isOpen ? "Close AI Chatbot" : "Open AI Chatbot"}
+          aria-label={isOpen ? "Close AI Interview Mentor" : "Open AI Interview Mentor"}
           onClick={toggleChat}
           onMouseEnter={() => setIsHovered(true)}
           onMouseLeave={() => setIsHovered(false)}
@@ -643,92 +1952,33 @@ export default function ChatBotIcon() {
               : isOpen
                 ? "0 4px 20px rgba(239,68,68,0.35)"
                 : "0 4px 20px rgba(59,130,246,0.35), 0 0 40px rgba(6,182,212,0.15)",
-            transform: isHovered ? "scale(1.12)" : "scale(1)",
+            transform: isHovered ? "scale(1.1)" : "scale(1)",
             transition: "all 0.35s cubic-bezier(0.4, 0, 0.2, 1)",
           }}
           className="relative flex h-16 w-16 items-center justify-center rounded-full text-white cursor-pointer"
         >
-          {/* Pulse ring (only when closed) */}
-          {!isOpen && (
+          {!isOpen ? (
             <span
               className="absolute inset-0 rounded-full"
               style={{
                 background: "linear-gradient(135deg, #3b82f6, #06b6d4)",
-                animation:
-                  "chatbot-pulse 2.5s cubic-bezier(0.4, 0, 0.6, 1) infinite",
+                animation: "chatbot-pulse 2.5s cubic-bezier(0.4, 0, 0.6, 1) infinite",
                 opacity: 0.4,
               }}
             />
-          )}
+          ) : null}
 
-          {/* Icon — chat bubble or close X */}
-          {isOpen ? (
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="relative z-10"
-              style={{
-                filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.2))",
-                transition: "transform 0.3s",
-                transform: "rotate(0deg)",
-              }}
-            >
-              <line x1="18" y1="6" x2="6" y2="18" />
-              <line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
-          ) : (
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="relative z-10 h-7 w-7"
-              style={{
-                filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.2))",
-              }}
-            >
-              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-              <circle cx="9" cy="10" r="1" fill="currentColor" stroke="none">
-                <animate
-                  attributeName="opacity"
-                  values="0.3;1;0.3"
-                  dur="1.4s"
-                  repeatCount="indefinite"
-                  begin="0s"
-                />
-              </circle>
-              <circle cx="12" cy="10" r="1" fill="currentColor" stroke="none">
-                <animate
-                  attributeName="opacity"
-                  values="0.3;1;0.3"
-                  dur="1.4s"
-                  repeatCount="indefinite"
-                  begin="0.2s"
-                />
-              </circle>
-              <circle cx="15" cy="10" r="1" fill="currentColor" stroke="none">
-                <animate
-                  attributeName="opacity"
-                  values="0.3;1;0.3"
-                  dur="1.4s"
-                  repeatCount="indefinite"
-                  begin="0.4s"
-                />
-              </circle>
-            </svg>
-          )}
+          <span
+            className="relative z-10"
+            style={{
+              fontSize: isOpen ? 28 : 22,
+              fontWeight: 800,
+              letterSpacing: "-0.02em",
+            }}
+          >
+            {isOpen ? "×" : "AI"}
+          </span>
 
-          {/* Online / Unread indicator */}
           <span
             className="absolute -top-0.5 -right-0.5 z-20 rounded-full border-2 border-slate-900"
             style={{
@@ -750,25 +2000,30 @@ export default function ChatBotIcon() {
         </button>
       </div>
 
-      {/* ============ ANIMATIONS ============ */}
       <style>{`
         @keyframes chatbot-pulse {
           0%, 100% { transform: scale(1); opacity: 0.4; }
           50% { transform: scale(1.45); opacity: 0; }
         }
+
         @keyframes chatFadeIn {
           from { opacity: 0; transform: translateY(8px); }
           to { opacity: 1; transform: translateY(0); }
         }
+
         @keyframes typingDot {
-          0%, 60%, 100% { opacity: 0.3; transform: translateY(0); }
-          30% { opacity: 1; transform: translateY(-4px); }
+          0%, 80%, 100% { opacity: 0.32; transform: translateY(0); }
+          40% { opacity: 1; transform: translateY(-2px); }
         }
-        #chatbot-panel::-webkit-scrollbar { width: 4px; }
-        #chatbot-panel::-webkit-scrollbar-track { background: transparent; }
-        #chatbot-panel::-webkit-scrollbar-thumb {
-          background: rgba(255,255,255,0.1);
-          border-radius: 4px;
+
+        @media (max-width: 640px) {
+          #chatbot-panel {
+            right: 12px !important;
+            bottom: ${isOpen ? "84px" : "72px"} !important;
+            width: calc(100vw - 24px) !important;
+            max-width: calc(100vw - 24px) !important;
+            height: ${isOpen ? "calc(100vh - 104px)" : "0px"} !important;
+          }
         }
       `}</style>
     </>
