@@ -299,6 +299,10 @@ const detectIntent = ({ message = "", question = "", answer = "", concept = "", 
     return "answer-feedback";
   }
 
+  if (GENERAL_CHAT_PATTERNS.some((pattern) => pattern.test(normalizedMessage))) {
+    return "general_chat";
+  }
+
   return "generate-question";
 };
 
@@ -313,13 +317,21 @@ const detectConversationMode = ({ message = "", intent = "", chatMode = "", ques
     return "profile";
   }
 
-  if (intent && intent !== "general_chat" && ALLOWED_INTENTS.has(intent)) {
-    return "interview";
+  if (intent === "general_chat") {
+    return "general";
+  }
+
+  if (GENERAL_CHAT_PATTERNS.some((p) => p.test(normalizedMessage))) {
+    return "general";
   }
 
   if (question && answer) return "interview";
   if (concept && validSkills.length > 0) return "interview";
   if (focus.length > 0 && validSkills.length > 0) return "interview";
+
+  if (intent && intent !== "general_chat" && ALLOWED_INTENTS.has(intent)) {
+    return "interview";
+  }
 
   if (isInterviewScopedRequest({ message, intent, question, answer, concept, focus, validSkills })) {
     return "interview";
