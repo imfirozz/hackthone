@@ -785,26 +785,32 @@ function MessageBubble({ message }) {
       style={{
         display: "flex",
         justifyContent: isUser ? "flex-end" : "flex-start",
-        marginBottom: 14,
-        animation: "chatFadeIn 0.3s ease-out",
+        marginBottom: 18,
+        animation: "chatFadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1)",
       }}
     >
       {!isUser && (
         <div
           style={{
-            width: 34,
-            height: 34,
+            width: 36,
+            height: 36,
             borderRadius: "50%",
             background: message.isError
               ? "linear-gradient(135deg, #ef4444, #f97316)"
-              : "linear-gradient(135deg, #3b82f6, #06b6d4)",
+              : "linear-gradient(135deg, #3b82f6, #06b6d4, #8b5cf6)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            fontSize: 14,
+            fontSize: 12,
+            fontWeight: 800,
             flexShrink: 0,
-            marginRight: 8,
+            marginRight: 10,
             marginTop: 2,
+            boxShadow: message.isError
+              ? "0 0 12px rgba(239,68,68,0.25)"
+              : "0 0 16px rgba(59,130,246,0.2)",
+            color: "#fff",
+            letterSpacing: "-0.02em",
           }}
         >
           {message.isError ? "!" : "AI"}
@@ -813,22 +819,27 @@ function MessageBubble({ message }) {
       <div
         style={{
           maxWidth: "86%",
-          padding: isUser ? "12px 14px" : "12px 14px 14px",
-          borderRadius: isUser ? "18px 18px 6px 18px" : "18px 18px 18px 6px",
+          padding: isUser ? "13px 16px" : "14px 16px 16px",
+          borderRadius: isUser ? "20px 20px 6px 20px" : "20px 20px 20px 6px",
           background: isUser
-            ? "linear-gradient(135deg, #3b82f6, #2563eb)"
-            : "rgba(255,255,255,0.06)",
+            ? "linear-gradient(135deg, #3b82f6 0%, #2563eb 50%, #4f46e5 100%)"
+            : "linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%)",
           border: isUser
             ? "none"
             : message.isError
-              ? "1px solid rgba(239,68,68,0.28)"
-              : "1px solid rgba(255,255,255,0.08)",
+              ? "1px solid rgba(239,68,68,0.2)"
+              : "1px solid rgba(255,255,255,0.06)",
           color: "#e2e8f0",
-          fontSize: 13,
-          lineHeight: 1.6,
+          fontSize: 13.5,
+          lineHeight: 1.65,
           wordBreak: "break-word",
           display: "grid",
-          gap: isUser ? 6 : 10,
+          gap: isUser ? 6 : 12,
+          boxShadow: isUser
+            ? "0 4px 20px rgba(59,130,246,0.2)"
+            : message.isError
+              ? "0 2px 12px rgba(239,68,68,0.08)"
+              : "0 2px 16px rgba(0,0,0,0.15)",
         }}
       >
         <div>{parseMarkdownInline(message.content)}</div>
@@ -926,42 +937,49 @@ function MessageBubble({ message }) {
 
 function TypingIndicator() {
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 18, animation: "chatFadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1)" }}>
       <div
         style={{
-          width: 34,
-          height: 34,
+          width: 36,
+          height: 36,
           borderRadius: "50%",
-          background: "linear-gradient(135deg, #3b82f6, #06b6d4)",
+          background: "linear-gradient(135deg, #3b82f6, #06b6d4, #8b5cf6)",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          fontSize: 14,
+          fontSize: 12,
+          fontWeight: 800,
           flexShrink: 0,
+          color: "#fff",
+          boxShadow: "0 0 20px rgba(59,130,246,0.25)",
+          animation: "neuralPulse 2s ease-in-out infinite",
+          letterSpacing: "-0.02em",
         }}
       >
         AI
       </div>
       <div
         style={{
-          padding: "10px 16px",
-          borderRadius: "16px 16px 16px 4px",
-          background: "rgba(255,255,255,0.06)",
-          border: "1px solid rgba(255,255,255,0.08)",
+          padding: "14px 20px",
+          borderRadius: "20px 20px 20px 6px",
+          background: "linear-gradient(135deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02))",
+          border: "1px solid rgba(59,130,246,0.12)",
           display: "flex",
-          gap: 4,
+          gap: 6,
           alignItems: "center",
+          boxShadow: "0 0 24px rgba(59,130,246,0.06)",
         }}
       >
         {[0, 1, 2].map((index) => (
           <span
             key={index}
             style={{
-              width: 7,
-              height: 7,
+              width: 8,
+              height: 8,
               borderRadius: "50%",
-              background: "#64748b",
+              background: "linear-gradient(135deg, #3b82f6, #06b6d4)",
               animation: `typingDot 1.4s ease-in-out ${index * 0.2}s infinite`,
+              boxShadow: "0 0 6px rgba(59,130,246,0.3)",
             }}
           />
         ))}
@@ -981,16 +999,17 @@ function ContextRibbon({ authIdentity, routeContext, profileSummary, isOnline })
   return (
     <div
       style={{
-        padding: "12px 14px 10px",
-        borderBottom: "1px solid rgba(255,255,255,0.06)",
+        padding: "10px 18px 10px",
+        borderBottom: "1px solid rgba(255,255,255,0.04)",
         display: "flex",
         flexWrap: "wrap",
-        gap: 8,
-        background: "rgba(255,255,255,0.025)",
+        gap: 6,
+        background: "linear-gradient(90deg, rgba(59,130,246,0.03) 0%, transparent 100%)",
+        animation: "chatFadeIn 0.5s ease-out",
       }}
     >
       <ToolBadge tone={authIdentity ? "success" : "default"}>
-        {authIdentity ? "Personalized mode" : "Guest mode"}
+        {authIdentity ? "Personalized" : "Guest"}
       </ToolBadge>
       <ToolBadge tone="primary">{routeContext.routeLabel}</ToolBadge>
       <ToolBadge tone="default">{toTitleCase(routeContext.interviewType)}</ToolBadge>
@@ -998,7 +1017,7 @@ function ContextRibbon({ authIdentity, routeContext, profileSummary, isOnline })
         {isOnline ? "Online" : "Offline"}
       </ToolBadge>
       {averageScore !== null ? <ToolBadge tone="warning">Avg {averageScore}</ToolBadge> : null}
-      {resumeSkill ? <ToolBadge tone="primary">Stack {resumeSkill}</ToolBadge> : null}
+      {resumeSkill ? <ToolBadge tone="primary">{resumeSkill}</ToolBadge> : null}
       {weakArea ? <ToolBadge tone="danger">Weak {weakArea}</ToolBadge> : null}
       {strongArea ? <ToolBadge tone="success">Strong {strongArea}</ToolBadge> : null}
     </div>
@@ -1718,11 +1737,12 @@ export default function ChatBotIcon() {
         style={{
           position: "fixed",
           inset: 0,
-          background: "linear-gradient(90deg, rgba(2,6,23,0.32), rgba(2,6,23,0.54))",
+          background: "radial-gradient(ellipse at 70% 50%, rgba(59,130,246,0.06) 0%, rgba(2,6,23,0.62) 50%, rgba(2,6,23,0.78) 100%)",
           opacity: isOpen ? 1 : 0,
           pointerEvents: isOpen ? "auto" : "none",
-          transition: "opacity 0.28s ease",
+          transition: "opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1)",
           zIndex: 98,
+          backdropFilter: isOpen ? "blur(4px)" : "none",
         }}
       />
       <div
@@ -1736,90 +1756,115 @@ export default function ChatBotIcon() {
           maxWidth: isOpen ? "min(50vw, calc(100vw - 24px))" : "calc(100vw - 32px)",
           height: "calc(100vh - 32px)",
           opacity: isOpen ? 1 : 0,
-          transform: isOpen ? "translateX(0) scale(1)" : "translateX(32px) scale(0.98)",
+          transform: isOpen ? "translateX(0) scale(1)" : "translateX(40px) scale(0.96)",
           transformOrigin: "center right",
-          transition: "all 0.35s cubic-bezier(0.4, 0, 0.2, 1)",
+          transition: "all 0.45s cubic-bezier(0.16, 1, 0.3, 1)",
           zIndex: 99,
           borderRadius: 28,
           overflow: "hidden",
           pointerEvents: isOpen ? "auto" : "none",
           display: "flex",
           flexDirection: "column",
-          background: "linear-gradient(180deg, rgba(15,23,42,0.985), rgba(8,12,24,0.99))",
-          border: "1px solid rgba(255,255,255,0.1)",
-          boxShadow: "0 28px 90px rgba(0,0,0,0.58), 0 0 40px rgba(59,130,246,0.12)",
-          backdropFilter: "blur(28px)",
+          background: "linear-gradient(170deg, rgba(15,23,42,0.96) 0%, rgba(8,12,28,0.98) 40%, rgba(5,8,22,0.99) 100%)",
+          border: "1px solid rgba(100,140,255,0.12)",
+          boxShadow: isOpen
+            ? "0 40px 120px rgba(0,0,0,0.65), 0 0 80px rgba(59,130,246,0.08), inset 0 1px 0 rgba(255,255,255,0.06)"
+            : "none",
+          backdropFilter: "blur(40px) saturate(1.4)",
         }}
       >
         <div
           style={{
-            padding: "16px 18px",
-            borderBottom: "1px solid rgba(255,255,255,0.08)",
+            padding: "20px 22px 18px",
+            borderBottom: "1px solid rgba(255,255,255,0.06)",
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
-            gap: 12,
-            background: "rgba(255,255,255,0.03)",
+            gap: 14,
+            background: "linear-gradient(180deg, rgba(30,41,75,0.25) 0%, rgba(15,23,42,0.08) 100%)",
             flexShrink: 0,
           }}
         >
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <div
-              style={{
-                width: 38,
-                height: 38,
-                borderRadius: "50%",
-                background: "linear-gradient(135deg, #3b82f6, #06b6d4)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: 16,
-                fontWeight: 800,
-                color: "#fff",
-              }}
-            >
-              AI
+          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+            <div style={{ position: "relative" }}>
+              <div
+                style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: "50%",
+                  background: "linear-gradient(135deg, #3b82f6 0%, #06b6d4 60%, #8b5cf6 100%)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: 16,
+                  fontWeight: 800,
+                  color: "#fff",
+                  boxShadow: "0 0 24px rgba(59,130,246,0.3), 0 0 8px rgba(6,182,212,0.2)",
+                  letterSpacing: "-0.02em",
+                }}
+              >
+                AI
+              </div>
+              <span
+                style={{
+                  position: "absolute",
+                  inset: -3,
+                  borderRadius: "50%",
+                  border: "2px solid rgba(59,130,246,0.25)",
+                  animation: isOnline ? "headerPulse 3s ease-in-out infinite" : "none",
+                }}
+              />
             </div>
             <div>
-              <div style={{ fontSize: 15, fontWeight: 800, color: "#fff", lineHeight: 1.2 }}>
-                AI Interview Mentor
+              <div style={{ fontSize: 17, fontWeight: 300, color: "#fff", lineHeight: 1.2, letterSpacing: "-0.01em" }}>
+                AI Interview <span style={{ fontWeight: 700 }}>Mentor</span>
               </div>
               <div
                 style={{
-                  fontSize: 11,
-                  color: isOnline ? "#4ade80" : "#fca5a5",
+                  fontSize: 11.5,
+                  color: isOnline ? "rgba(74,222,128,0.9)" : "rgba(252,165,165,0.9)",
                   display: "flex",
                   alignItems: "center",
                   gap: 6,
+                  marginTop: 3,
+                  fontWeight: 500,
+                  letterSpacing: "0.01em",
                 }}
               >
                 <span
                   style={{
-                    width: 6,
-                    height: 6,
+                    width: 7,
+                    height: 7,
                     borderRadius: "50%",
                     background: isOnline ? "#22c55e" : "#ef4444",
                     display: "inline-block",
+                    boxShadow: isOnline ? "0 0 8px rgba(34,197,94,0.5)" : "0 0 8px rgba(239,68,68,0.5)",
                   }}
                 />
                 {authIdentity ? `Coaching ${authIdentity.displayName}` : "Guest mentoring"}
               </div>
             </div>
           </div>
-          <div style={{ display: "flex", gap: 6 }}>
+          <div style={{ display: "flex", gap: 8 }}>
             <button
               onClick={clearChat}
               title="Clear chat"
               style={{
-                width: 32,
-                height: 32,
-                borderRadius: 10,
-                border: "1px solid rgba(255,255,255,0.08)",
-                background: "rgba(255,255,255,0.04)",
-                color: "rgba(255,255,255,0.5)",
+                width: 34,
+                height: 34,
+                borderRadius: 12,
+                border: "1px solid rgba(255,255,255,0.06)",
+                background: "rgba(255,255,255,0.03)",
+                color: "rgba(255,255,255,0.45)",
                 cursor: "pointer",
-                fontSize: 14,
+                fontSize: 15,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                transition: "all 0.25s ease",
               }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.08)"; e.currentTarget.style.color = "#fff"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.03)"; e.currentTarget.style.color = "rgba(255,255,255,0.45)"; }}
             >
               ↺
             </button>
@@ -1827,15 +1872,21 @@ export default function ChatBotIcon() {
               onClick={toggleChat}
               title="Close mentor"
               style={{
-                width: 32,
-                height: 32,
-                borderRadius: 10,
-                border: "1px solid rgba(255,255,255,0.08)",
-                background: "rgba(255,255,255,0.04)",
-                color: "rgba(255,255,255,0.5)",
+                width: 34,
+                height: 34,
+                borderRadius: 12,
+                border: "1px solid rgba(255,255,255,0.06)",
+                background: "rgba(255,255,255,0.03)",
+                color: "rgba(255,255,255,0.45)",
                 cursor: "pointer",
-                fontSize: 16,
+                fontSize: 17,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                transition: "all 0.25s ease",
               }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(239,68,68,0.12)"; e.currentTarget.style.color = "#fca5a5"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.03)"; e.currentTarget.style.color = "rgba(255,255,255,0.45)"; }}
             >
               ×
             </button>
@@ -1903,20 +1954,23 @@ export default function ChatBotIcon() {
                     onClick={() => handleQuickAction(action)}
                     style={{
                       textAlign: "left",
-                      padding: "12px 13px",
-                      borderRadius: 16,
-                      border: "1px solid rgba(255,255,255,0.08)",
-                      background: "rgba(255,255,255,0.035)",
+                      padding: "14px 16px",
+                      borderRadius: 18,
+                      border: "1px solid rgba(255,255,255,0.06)",
+                      background: "linear-gradient(135deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.015) 100%)",
                       color: "#e2e8f0",
                       cursor: "pointer",
                       display: "grid",
-                      gap: 4,
+                      gap: 6,
+                      transition: "all 0.3s cubic-bezier(0.16, 1, 0.3, 1)",
                     }}
+                    onMouseEnter={(e) => { e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.borderColor = "rgba(59,130,246,0.2)"; e.currentTarget.style.boxShadow = "0 8px 30px rgba(0,0,0,0.2), 0 0 20px rgba(59,130,246,0.06)"; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.borderColor = "rgba(255,255,255,0.06)"; e.currentTarget.style.boxShadow = "none"; }}
                   >
-                    <span style={{ fontSize: 13, fontWeight: 800, color: "#fff" }}>
+                    <span style={{ fontSize: 13.5, fontWeight: 700, color: "#fff", letterSpacing: "-0.01em" }}>
                       {action.title}
                     </span>
-                    <span style={{ fontSize: 12, color: "rgba(203,213,225,0.84)", lineHeight: 1.55 }}>
+                    <span style={{ fontSize: 12.5, color: "rgba(203,213,225,0.7)", lineHeight: 1.55 }}>
                       {action.description}
                     </span>
                   </button>
@@ -1990,35 +2044,44 @@ export default function ChatBotIcon() {
               aria-label="Chat with AI interview mentor"
               style={{
                 flex: 1,
-                padding: "12px 14px",
-                borderRadius: 14,
-                border: "1px solid rgba(255,255,255,0.1)",
-                background: "rgba(255,255,255,0.05)",
-                color: "#e2e8f0",
-                fontSize: 13,
+                padding: "14px 18px",
+                borderRadius: 16,
+                border: "1px solid rgba(255,255,255,0.08)",
+                background: "rgba(255,255,255,0.04)",
+                color: "#f1f5f9",
+                fontSize: 13.5,
                 outline: "none",
+                transition: "all 0.3s ease",
+                letterSpacing: "0.005em",
               }}
+              onFocus={(e) => { e.target.style.borderColor = "rgba(59,130,246,0.35)"; e.target.style.boxShadow = "0 0 20px rgba(59,130,246,0.08), inset 0 0 12px rgba(59,130,246,0.04)"; e.target.style.background = "rgba(255,255,255,0.06)"; }}
+              onBlur={(e) => { e.target.style.borderColor = "rgba(255,255,255,0.08)"; e.target.style.boxShadow = "none"; e.target.style.background = "rgba(255,255,255,0.04)"; }}
             />
             <button
               type="submit"
               disabled={!normalizeText(inputValue) || isLoading}
               style={{
-                width: 44,
-                height: 44,
-                borderRadius: 14,
+                width: 48,
+                height: 48,
+                borderRadius: 16,
                 border: "none",
                 background: normalizeText(inputValue) && !isLoading
-                  ? "linear-gradient(135deg, #3b82f6, #06b6d4)"
-                  : "rgba(255,255,255,0.06)",
+                  ? "linear-gradient(135deg, #3b82f6 0%, #06b6d4 60%, #8b5cf6 100%)"
+                  : "rgba(255,255,255,0.05)",
                 color: normalizeText(inputValue) && !isLoading
                   ? "#fff"
-                  : "rgba(255,255,255,0.3)",
+                  : "rgba(255,255,255,0.25)",
                 cursor: normalizeText(inputValue) && !isLoading ? "pointer" : "not-allowed",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                fontSize: 18,
+                fontSize: 20,
                 flexShrink: 0,
+                transition: "all 0.3s cubic-bezier(0.16, 1, 0.3, 1)",
+                boxShadow: normalizeText(inputValue) && !isLoading
+                  ? "0 4px 20px rgba(59,130,246,0.25)"
+                  : "none",
+                transform: normalizeText(inputValue) && !isLoading ? "scale(1)" : "scale(0.95)",
               }}
             >
               ↗
@@ -2114,30 +2177,52 @@ export default function ChatBotIcon() {
 
       <style>{`
         @keyframes chatbot-pulse {
-          0%, 100% { transform: scale(1); opacity: 0.4; }
-          50% { transform: scale(1.45); opacity: 0; }
+          0%, 100% { transform: scale(1); opacity: 0.35; }
+          50% { transform: scale(1.5); opacity: 0; }
         }
 
         @keyframes chatFadeIn {
-          from { opacity: 0; transform: translateY(8px); }
-          to { opacity: 1; transform: translateY(0); }
+          from { opacity: 0; transform: translateY(12px) scale(0.97); filter: blur(2px); }
+          to { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
         }
 
         @keyframes typingDot {
-          0%, 80%, 100% { opacity: 0.32; transform: translateY(0); }
-          40% { opacity: 1; transform: translateY(-2px); }
+          0%, 80%, 100% { opacity: 0.25; transform: translateY(0) scale(0.9); }
+          40% { opacity: 1; transform: translateY(-3px) scale(1.1); }
         }
+
+        @keyframes neuralPulse {
+          0%, 100% { box-shadow: 0 0 20px rgba(59,130,246,0.25); }
+          50% { box-shadow: 0 0 32px rgba(59,130,246,0.4), 0 0 12px rgba(6,182,212,0.2); }
+        }
+
+        @keyframes headerPulse {
+          0%, 100% { opacity: 0.4; transform: scale(1); }
+          50% { opacity: 0; transform: scale(1.25); }
+        }
+
+        @keyframes ambientGlow {
+          0%, 100% { opacity: 0.5; }
+          50% { opacity: 0.8; }
+        }
+
+        #chatbot-panel::-webkit-scrollbar { width: 3px; }
+        #chatbot-panel::-webkit-scrollbar-track { background: transparent; }
+        #chatbot-panel::-webkit-scrollbar-thumb { background: rgba(59,130,246,0.15); border-radius: 4px; }
+        #chatbot-panel *::-webkit-scrollbar { width: 3px; }
+        #chatbot-panel *::-webkit-scrollbar-track { background: transparent; }
+        #chatbot-panel *::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 4px; }
 
         @media (max-width: 640px) {
           #chatbot-panel {
-            top: 8px !important;
-            right: 8px !important;
-            bottom: 8px !important;
-            width: calc(100vw - 16px) !important;
-            max-width: calc(100vw - 16px) !important;
-            height: calc(100vh - 16px) !important;
-            border-radius: 20px !important;
-            transform: ${isOpen ? "translateX(0) scale(1)" : "translateX(18px) scale(0.98)"} !important;
+            top: 0 !important;
+            right: 0 !important;
+            bottom: 0 !important;
+            width: 100vw !important;
+            max-width: 100vw !important;
+            height: 100vh !important;
+            border-radius: 0 !important;
+            transform: ${isOpen ? "translateX(0) scale(1)" : "translateX(100%) scale(1)"} !important;
           }
         }
       `}</style>
