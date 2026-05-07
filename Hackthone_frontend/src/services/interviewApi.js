@@ -87,3 +87,10 @@ export async function transcribeInterviewAudio(audioFile) {
     isFormData: true,
   });
 }
+
+export async function requestInterviewMentor(payload) {
+  return requestInterviewApi("/api/interview/mentor", {
+    method: "POST",
+    body: payload,
+  });
+}

@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { getStoredAuthSession } from "../services/authApi";
 import {
   fetchNextInterviewQuestion,
+  requestInterviewMentor,
   submitInterviewAnswer,
   transcribeInterviewAudio,
   uploadResumeFile,
@@ -39,6 +40,380 @@ const ANSWER_MODE_OPTIONS = [
     desc: "Run the interview hands-free and let the transcript capture your spoken answer.",
   },
 ];
+
+const MENTOR_ACTIONS = [
+  {
+    id: "generate-question",
+    label: "Practice Question",
+    desc: "Get one realistic question matched to your current interview setup.",
+  },
+  {
+    id: "explain-concept",
+    label: "Explain a Concept",
+    desc: "Break down a concept in interview language with examples and trade-offs.",
+  },
+  {
+    id: "weak-area-coaching",
+    label: "Weak Area Coaching",
+    desc: "Use profile history or current focus areas to target the next practice block.",
+  },
+];
+
+const formatMentorLabel = (value = "") =>
+  String(value)
+    .replace(/[-_]+/g, " ")
+    .replace(/\b\w/g, (character) => character.toUpperCase())
+    .trim();
+
+function MentorPill({ children, tone = "neutral" }) {
+  const paletteByTone = {
+    neutral: {
+      background: "rgba(255,255,255,0.06)",
+      color: "rgba(255,255,255,0.7)",
+      border: "1px solid rgba(255,255,255,0.08)",
+    },
+    accent: {
+      background: "rgba(255,85,0,0.12)",
+      color: "#FF5500",
+      border: "1px solid rgba(255,85,0,0.18)",
+    },
+    success: {
+      background: "rgba(34,197,94,0.14)",
+      color: "#4ade80",
+      border: "1px solid rgba(34,197,94,0.2)",
+    },
+  };
+  const palette = paletteByTone[tone] || paletteByTone.neutral;
+
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "4px 10px",
+        borderRadius: 999,
+        fontSize: 10,
+        fontWeight: 800,
+        letterSpacing: "0.08em",
+        textTransform: "uppercase",
+        ...palette,
+      }}
+    >
+      {children}
+    </span>
+  );
+}
+
+function MentorResponsePanel({ response, error, isLoading, compact = false }) {
+  if (!isLoading && !error && !response?.data) {
+    return null;
+  }
+
+  if (isLoading) {
+    return (
+      <div
+        style={{
+          borderRadius: 12,
+          border: "1px solid rgba(255,255,255,0.08)",
+          background: "rgba(255,255,255,0.03)",
+          padding: compact ? 14 : 18,
+          color: "rgba(255,255,255,0.72)",
+          fontSize: compact ? 12 : 13,
+          lineHeight: 1.6,
+        }}
+      >
+        AI mentor is preparing a tailored coaching response...
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div
+        style={{
+          borderRadius: 12,
+          border: "1px solid rgba(248,113,113,0.35)",
+          background: "rgba(127,29,29,0.28)",
+          padding: compact ? 14 : 18,
+          color: "#fecaca",
+          fontSize: compact ? 12 : 13,
+          lineHeight: 1.6,
+        }}
+      >
+        {error}
+      </div>
+    );
+  }
+
+  const data = response?.data || {};
+  const profile = response?.profile || {};
+  const practiceGuidance = Array.isArray(data.practiceGuidance) ? data.practiceGuidance : [];
+  const improvementTips = Array.isArray(data.improvementTips) ? data.improvementTips : [];
+  const weakAreas = Array.isArray(profile.weakAreas) ? profile.weakAreas.slice(0, 4) : [];
+  const strongAreas = Array.isArray(profile.strongAreas) ? profile.strongAreas.slice(0, 3) : [];
+  const invalidSkills = Array.isArray(data.invalidSkills) ? data.invalidSkills : [];
+  const requiredFields = Array.isArray(data.requiredFields) ? data.requiredFields : [];
+  const hasReview = Boolean(data.review);
+
+  return (
+    <div
+      style={{
+        borderRadius: 12,
+        border: "1px solid rgba(255,255,255,0.08)",
+        background: "rgba(255,255,255,0.03)",
+        padding: compact ? 14 : 18,
+        display: "grid",
+        gap: compact ? 10 : 12,
+        textAlign: "left",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "flex-start",
+          justifyContent: "space-between",
+          gap: 12,
+          flexWrap: "wrap",
+        }}
+      >
+        <div>
+          <p
+            style={{
+              margin: "0 0 6px",
+              fontSize: 10,
+              fontWeight: 800,
+              letterSpacing: "0.12em",
+              color: "#FF5500",
+              textTransform: "uppercase",
+            }}
+          >
+            AI Interview Mentor
+          </p>
+          <p
+            style={{
+              margin: 0,
+              fontSize: compact ? 13 : 14,
+              fontWeight: 700,
+              color: "#fff",
+            }}
+          >
+            {response?.mode === "personalized" ? "Personalized coaching" : "Guest coaching"}
+          </p>
+        </div>
+
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+          {response?.intent ? <MentorPill tone="accent">{formatMentorLabel(response.intent)}</MentorPill> : null}
+          {response?.mentor ? <MentorPill>{response.mentor}</MentorPill> : null}
+          {typeof profile.averageScore === "number" ? (
+            <MentorPill tone="success">Avg {Math.round(profile.averageScore)}</MentorPill>
+          ) : null}
+        </div>
+      </div>
+
+      {data.reply ? (
+        <p
+          style={{
+            margin: 0,
+            fontSize: compact ? 12 : 13,
+            lineHeight: 1.7,
+            color: "rgba(255,255,255,0.76)",
+          }}
+        >
+          {data.reply}
+        </p>
+      ) : null}
+
+      {requiredFields.length > 0 ? (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+          {requiredFields.map((field) => (
+            <MentorPill key={field}>{field}</MentorPill>
+          ))}
+        </div>
+      ) : null}
+
+      {invalidSkills.length > 0 ? (
+        <p
+          style={{
+            margin: 0,
+            fontSize: compact ? 11 : 12,
+            color: "#fca5a5",
+            lineHeight: 1.6,
+          }}
+        >
+          Ignored invalid skills: {invalidSkills.join(", ")}
+        </p>
+      ) : null}
+
+      {data.question ? (
+        <div
+          style={{
+            borderRadius: 10,
+            border: "1px solid rgba(255,85,0,0.18)",
+            background: "rgba(255,85,0,0.05)",
+            padding: compact ? 12 : 14,
+          }}
+        >
+          <p
+            style={{
+              margin: "0 0 8px",
+              fontSize: 10,
+              fontWeight: 800,
+              letterSpacing: "0.12em",
+              color: "#FF5500",
+              textTransform: "uppercase",
+            }}
+          >
+            Practice Question
+          </p>
+          <p style={{ margin: 0, fontSize: compact ? 12 : 13, lineHeight: 1.7, color: "#fff" }}>
+            {data.question}
+          </p>
+          {data.topic ? (
+            <div style={{ marginTop: 10 }}>
+              <MentorPill>{data.topic}</MentorPill>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
+      {data.explanation ? (
+        <div>
+          <p style={{ margin: "0 0 6px", fontSize: 12, fontWeight: 700, color: "#fff" }}>Explanation</p>
+          <p style={{ margin: 0, fontSize: compact ? 12 : 13, lineHeight: 1.7, color: "rgba(255,255,255,0.76)" }}>
+            {data.explanation}
+          </p>
+        </div>
+      ) : null}
+
+      {data.practicalExample ? (
+        <div>
+          <p style={{ margin: "0 0 6px", fontSize: 12, fontWeight: 700, color: "#fff" }}>Practical Example</p>
+          <p style={{ margin: 0, fontSize: compact ? 12 : 13, lineHeight: 1.7, color: "rgba(255,255,255,0.76)" }}>
+            {data.practicalExample}
+          </p>
+        </div>
+      ) : null}
+
+      {data.followUpQuestion ? (
+        <div>
+          <p style={{ margin: "0 0 6px", fontSize: 12, fontWeight: 700, color: "#fff" }}>Follow-up</p>
+          <p style={{ margin: 0, fontSize: compact ? 12 : 13, lineHeight: 1.7, color: "rgba(255,255,255,0.76)" }}>
+            {data.followUpQuestion}
+          </p>
+        </div>
+      ) : null}
+
+      {data.improvedAnswer ? (
+        <div
+          style={{
+            borderRadius: 10,
+            border: "1px solid rgba(34,197,94,0.18)",
+            background: "rgba(34,197,94,0.06)",
+            padding: compact ? 12 : 14,
+          }}
+        >
+          <p
+            style={{
+              margin: "0 0 8px",
+              fontSize: 10,
+              fontWeight: 800,
+              letterSpacing: "0.12em",
+              color: "#4ade80",
+              textTransform: "uppercase",
+            }}
+          >
+            Improved Answer
+          </p>
+          <p style={{ margin: 0, fontSize: compact ? 12 : 13, lineHeight: 1.7, color: "#fff" }}>
+            {data.improvedAnswer}
+          </p>
+        </div>
+      ) : null}
+
+      {hasReview ? (
+        <div
+          style={{
+            borderRadius: 10,
+            border: "1px solid rgba(255,255,255,0.08)",
+            background: "rgba(255,255,255,0.02)",
+            padding: compact ? 12 : 14,
+            display: "grid",
+            gap: 8,
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <MentorPill tone="accent">Score {data.review.score ?? "-"}</MentorPill>
+            {data.review.confidence ? <MentorPill>{data.review.confidence}</MentorPill> : null}
+          </div>
+          {data.review.feedback ? (
+            <p style={{ margin: 0, fontSize: compact ? 12 : 13, lineHeight: 1.7, color: "#fff" }}>
+              {data.review.feedback}
+            </p>
+          ) : null}
+          {data.review.strength ? (
+            <p style={{ margin: 0, fontSize: compact ? 12 : 13, lineHeight: 1.7, color: "rgba(255,255,255,0.76)" }}>
+              <strong>Strength:</strong> {data.review.strength}
+            </p>
+          ) : null}
+          {data.review.improvement ? (
+            <p style={{ margin: 0, fontSize: compact ? 12 : 13, lineHeight: 1.7, color: "rgba(255,255,255,0.76)" }}>
+              <strong>Improvement:</strong> {data.review.improvement}
+            </p>
+          ) : null}
+          {data.review.idealAnswer ? (
+            <p style={{ margin: 0, fontSize: compact ? 12 : 13, lineHeight: 1.7, color: "rgba(255,255,255,0.76)" }}>
+              <strong>Ideal Answer:</strong> {data.review.idealAnswer}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+
+      {practiceGuidance.length > 0 ? (
+        <div>
+          <p style={{ margin: "0 0 6px", fontSize: 12, fontWeight: 700, color: "#fff" }}>Practice Guidance</p>
+          <ul style={{ margin: 0, paddingLeft: 18, color: "rgba(255,255,255,0.76)", fontSize: compact ? 12 : 13, lineHeight: 1.7 }}>
+            {practiceGuidance.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      {improvementTips.length > 0 ? (
+        <div>
+          <p style={{ margin: "0 0 6px", fontSize: 12, fontWeight: 700, color: "#fff" }}>Improvement Tips</p>
+          <ul style={{ margin: 0, paddingLeft: 18, color: "rgba(255,255,255,0.76)", fontSize: compact ? 12 : 13, lineHeight: 1.7 }}>
+            {improvementTips.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      {weakAreas.length > 0 || strongAreas.length > 0 ? (
+        <div style={{ display: "grid", gap: 8 }}>
+          {weakAreas.length > 0 ? (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+              {weakAreas.map((item) => (
+                <MentorPill key={`weak-${item}`}>{item}</MentorPill>
+              ))}
+            </div>
+          ) : null}
+          {strongAreas.length > 0 ? (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+              {strongAreas.map((item) => (
+                <MentorPill key={`strong-${item}`} tone="success">
+                  {item}
+                </MentorPill>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 function supportsVoiceTranscription() {
   if (typeof window === "undefined") {
@@ -419,6 +794,12 @@ export default function InterviewSession({ mode = "mock" }) {
   const [isBootstrapping, setIsBootstrapping] = useState(false);
   const [isSubmittingAnswer, setIsSubmittingAnswer] = useState(false);
   const [isTranscribingVoice, setIsTranscribingVoice] = useState(false);
+  const [mentorIntent, setMentorIntent] = useState("generate-question");
+  const [mentorPrompt, setMentorPrompt] = useState("");
+  const [mentorResponse, setMentorResponse] = useState(null);
+  const [mentorError, setMentorError] = useState("");
+  const [isMentorLoading, setIsMentorLoading] = useState(false);
+  const [mentorTargetKey, setMentorTargetKey] = useState("");
   const mediaRecorderRef = useRef(null);
   const audioStreamRef = useRef(null);
   const audioChunksRef = useRef([]);
@@ -455,6 +836,12 @@ export default function InterviewSession({ mode = "mock" }) {
     setResumeInsights(null);
     setResumeParser("");
     setIsTranscribingVoice(false);
+    setMentorIntent("generate-question");
+    setMentorPrompt("");
+    setMentorResponse(null);
+    setMentorError("");
+    setIsMentorLoading(false);
+    setMentorTargetKey("");
   }, [iv, sessionIdentityKey]);
 
   useEffect(() => {
@@ -577,7 +964,7 @@ export default function InterviewSession({ mode = "mock" }) {
       ? currentTranscript
       : currentAnswer
     : currentTranscript || currentAnswer;
-  const resumeTags = useMemo(() => {
+  const flattenedResumeSkills = useMemo(() => {
     if (!resumeInsights) {
       return [];
     }
@@ -587,8 +974,9 @@ export default function InterviewSession({ mode = "mock" }) {
       ...(resumeInsights.frameworks || []),
       ...(resumeInsights.tools || []),
       ...(resumeInsights.concepts || []),
-    ]).slice(0, 10);
+    ]);
   }, [resumeInsights]);
+  const resumeTags = useMemo(() => flattenedResumeSkills.slice(0, 10), [flattenedResumeSkills]);
   const resumeSections = useMemo(
     () =>
       [
@@ -599,8 +987,36 @@ export default function InterviewSession({ mode = "mock" }) {
       ].filter((section) => section.values.length > 0),
     [resumeInsights],
   );
+  const mentorSkillPool = useMemo(
+    () => uniqueList([...(activeConfig.skills || []), ...flattenedResumeSkills]).slice(0, 10),
+    [activeConfig.skills, flattenedResumeSkills],
+  );
+  const mentorFocusAreas = useMemo(
+    () =>
+      uniqueList([
+        ...(activeConfig.focus || []),
+        ...(resumeInsights?.concepts || []),
+        ...answeredQuestions.map((entry) => cleanText(entry.topic)).filter(Boolean),
+      ]).slice(0, 8),
+    [activeConfig.focus, answeredQuestions, resumeInsights],
+  );
   const isBusy = isBootstrapping || isSubmittingAnswer || isTranscribingVoice;
   const canSubmitCurrentAnswer = !isBusy && !isRecording;
+  const mentorPromptMeta =
+    mentorIntent === "explain-concept"
+      ? {
+          title: "Concept or topic",
+          placeholder: "Example: When would you use Redux Toolkit selectors to prevent unnecessary re-renders?",
+        }
+      : mentorIntent === "weak-area-coaching"
+        ? {
+            title: "Optional coaching note",
+            placeholder: "Example: I struggle to explain trade-offs clearly under pressure.",
+          }
+        : {
+            title: "Optional prompt",
+            placeholder: "Example: Push me on React performance and state management for a startup frontend round.",
+          };
 
   const speakQuestion = useCallback(() => {
     if (!currentQuestion?.question) return;
@@ -784,6 +1200,95 @@ export default function InterviewSession({ mode = "mock" }) {
 
     return parseResumePreview(resumeFile);
   }, [parseResumePreview, resumeFile, resumeFileName, resumeInsights]);
+
+  const buildMentorPayload = useCallback(
+    (overrides = {}) => {
+      const nextIntent = cleanText(overrides.intent || mentorIntent) || "generate-question";
+      const nextPrompt = cleanText(
+        Object.prototype.hasOwnProperty.call(overrides, "message")
+          ? overrides.message
+          : mentorPrompt,
+      );
+      const nextConcept =
+        cleanText(overrides.concept) ||
+        (nextIntent === "explain-concept" ? nextPrompt : "");
+      const nextQuestion = cleanText(
+        overrides.question || currentQuestion?.question || "",
+      );
+      const nextAnswer = cleanText(overrides.answer || "");
+      const nextSkill = cleanText(
+        overrides.skill ||
+          currentQuestion?.topic ||
+          mentorSkillPool[0] ||
+          mentorFocusAreas[0] ||
+          activeConfig.title,
+      );
+
+      return {
+        intent: nextIntent,
+        ...(nextPrompt ? { message: nextPrompt } : {}),
+        ...(nextConcept ? { concept: nextConcept } : {}),
+        ...(nextQuestion ? { question: nextQuestion } : {}),
+        ...(nextAnswer ? { answer: nextAnswer } : {}),
+        ...(nextSkill ? { skill: nextSkill } : {}),
+        company: cleanText(overrides.company || activeConfig.company),
+        interviewType: cleanText(overrides.interviewType || activeConfig.round || activeMode),
+        difficulty: cleanText(
+          overrides.difficulty || currentDifficulty || activeConfig.difficulty,
+        ),
+        domain: cleanText(overrides.domain || activeConfig.domain),
+        skills: mentorSkillPool,
+        focus: mentorFocusAreas,
+      };
+    },
+    [
+      activeConfig.company,
+      activeConfig.difficulty,
+      activeConfig.domain,
+      activeConfig.round,
+      activeConfig.title,
+      activeMode,
+      currentDifficulty,
+      currentQuestion?.question,
+      currentQuestion?.topic,
+      mentorFocusAreas,
+      mentorIntent,
+      mentorPrompt,
+      mentorSkillPool,
+    ],
+  );
+
+  const runMentorRequest = useCallback(
+    async (overrides = {}) => {
+      setIsMentorLoading(true);
+      setMentorError("");
+      setMentorTargetKey(cleanText(overrides.targetKey || ""));
+
+      try {
+        const response = await requestInterviewMentor(buildMentorPayload(overrides));
+        setMentorResponse(response);
+        return response;
+      } catch (error) {
+        setMentorResponse(null);
+        setMentorError(error.message || "Failed to get mentor guidance.");
+        throw error;
+      } finally {
+        setIsMentorLoading(false);
+      }
+    },
+    [buildMentorPayload],
+  );
+
+  const requestMentorAction = useCallback(
+    (nextIntent, overrides = {}) => {
+      setMentorIntent(nextIntent);
+      return runMentorRequest({
+        ...overrides,
+        intent: nextIntent,
+      }).catch(() => {});
+    },
+    [runMentorRequest],
+  );
 
   const loadNextQuestion = useCallback(
     async ({ configOverride, nextSessionId = "", difficultyOverride, reset = false }) => {
@@ -1270,6 +1775,67 @@ export default function InterviewSession({ mode = "mock" }) {
                             Trend {entry.trend || "unstable"}
                           </span>
                         </div>
+                        <div style={{ marginTop: 12, display: "flex", gap: 10, flexWrap: "wrap" }}>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              requestMentorAction("improve-answer", {
+                                answer: entry.answer,
+                                question: entry.question,
+                                skill: entry.topic,
+                                targetKey: entry.id,
+                                message: "Improve this answer for clarity, structure, and technical depth.",
+                              })
+                            }
+                            style={{
+                              borderRadius: 8,
+                              border: "1px solid rgba(255,85,0,0.25)",
+                              background: "rgba(255,85,0,0.08)",
+                              color: "#FF5500",
+                              padding: "8px 12px",
+                              fontSize: 11,
+                              fontWeight: 800,
+                              letterSpacing: "0.08em",
+                              textTransform: "uppercase",
+                              cursor: "pointer",
+                            }}
+                          >
+                            Refine With Mentor
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              requestMentorAction("answer-feedback", {
+                                answer: entry.answer,
+                                question: entry.question,
+                                skill: entry.topic,
+                                targetKey: entry.id,
+                              })
+                            }
+                            style={{
+                              borderRadius: 8,
+                              border: "1px solid rgba(255,255,255,0.12)",
+                              background: "rgba(255,255,255,0.04)",
+                              color: "rgba(255,255,255,0.75)",
+                              padding: "8px 12px",
+                              fontSize: 11,
+                              fontWeight: 800,
+                              letterSpacing: "0.08em",
+                              textTransform: "uppercase",
+                              cursor: "pointer",
+                            }}
+                          >
+                            Mentor Re-Score
+                          </button>
+                        </div>
+                        {mentorTargetKey === entry.id ? (
+                          <MentorResponsePanel
+                            response={mentorResponse}
+                            error={mentorError}
+                            isLoading={isMentorLoading}
+                            compact
+                          />
+                        ) : null}
                       </div>
                     </div>
                   ) : null}
@@ -1645,6 +2211,189 @@ export default function InterviewSession({ mode = "mock" }) {
                 </div>
               </div>
             ) : null}
+
+            <div
+              style={{
+                marginBottom: 24,
+                border: "1px solid rgba(255,255,255,0.08)",
+                background: "rgba(255,255,255,0.03)",
+                borderRadius: 12,
+                padding: 16,
+                textAlign: "left",
+                display: "grid",
+                gap: 14,
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "flex-start",
+                  justifyContent: "space-between",
+                  gap: 12,
+                  flexWrap: "wrap",
+                }}
+              >
+                <div>
+                  <p
+                    style={{
+                      margin: "0 0 6px",
+                      fontSize: 11,
+                      fontWeight: 800,
+                      color: "#FF5500",
+                      letterSpacing: "0.1em",
+                    }}
+                  >
+                    AI MENTOR
+                  </p>
+                  <p style={{ margin: 0, fontSize: 13, color: "rgba(255,255,255,0.72)", lineHeight: 1.6 }}>
+                    Get a practice question, concept explanation, or weak-area plan before the round starts.
+                  </p>
+                </div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                  {mentorSkillPool.slice(0, 4).map((skill) => (
+                    <MentorPill key={skill}>{skill}</MentorPill>
+                  ))}
+                </div>
+              </div>
+
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
+                  gap: 10,
+                }}
+              >
+                {MENTOR_ACTIONS.map((action) => {
+                  const isSelected = mentorIntent === action.id;
+                  return (
+                    <button
+                      key={action.id}
+                      type="button"
+                      onClick={() => setMentorIntent(action.id)}
+                      style={{
+                        textAlign: "left",
+                        borderRadius: 10,
+                        border: isSelected
+                          ? "1px solid rgba(255,85,0,0.35)"
+                          : "1px solid rgba(255,255,255,0.08)",
+                        background: isSelected
+                          ? "rgba(255,85,0,0.08)"
+                          : "rgba(255,255,255,0.02)",
+                        padding: 14,
+                        cursor: "pointer",
+                      }}
+                    >
+                      <p
+                        style={{
+                          margin: "0 0 6px",
+                          fontSize: 12,
+                          fontWeight: 700,
+                          color: isSelected ? "#fff" : "rgba(255,255,255,0.86)",
+                        }}
+                      >
+                        {action.label}
+                      </p>
+                      <p
+                        style={{
+                          margin: 0,
+                          fontSize: 11,
+                          color: "rgba(255,255,255,0.54)",
+                          lineHeight: 1.5,
+                        }}
+                      >
+                        {action.desc}
+                      </p>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div style={{ display: "grid", gap: 8 }}>
+                <label
+                  htmlFor="mentor-prompt"
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 700,
+                    color: "rgba(255,255,255,0.72)",
+                    letterSpacing: "0.08em",
+                    textTransform: "uppercase",
+                  }}
+                >
+                  {mentorPromptMeta.title}
+                </label>
+                <textarea
+                  id="mentor-prompt"
+                  value={mentorPrompt}
+                  onChange={(event) => setMentorPrompt(event.target.value)}
+                  placeholder={mentorPromptMeta.placeholder}
+                  rows={3}
+                  style={{
+                    width: "100%",
+                    borderRadius: 10,
+                    border: "1px solid rgba(255,255,255,0.08)",
+                    background: "rgba(255,255,255,0.02)",
+                    color: "#fff",
+                    padding: "12px 14px",
+                    fontSize: 13,
+                    lineHeight: 1.6,
+                    resize: "vertical",
+                  }}
+                />
+              </div>
+
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                <button
+                  type="button"
+                  onClick={() => requestMentorAction(mentorIntent, { message: mentorPrompt })}
+                  disabled={isMentorLoading}
+                  style={{
+                    borderRadius: 8,
+                    border: "1px solid rgba(255,85,0,0.25)",
+                    background: "rgba(255,85,0,0.12)",
+                    color: "#FF5500",
+                    padding: "10px 14px",
+                    fontSize: 11,
+                    fontWeight: 800,
+                    letterSpacing: "0.08em",
+                    textTransform: "uppercase",
+                    cursor: isMentorLoading ? "wait" : "pointer",
+                  }}
+                >
+                  {isMentorLoading ? "Loading..." : `Run ${formatMentorLabel(mentorIntent)}`}
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    requestMentorAction("generate-question", {
+                      message: mentorPrompt,
+                    })
+                  }
+                  disabled={isMentorLoading}
+                  style={{
+                    borderRadius: 8,
+                    border: "1px solid rgba(255,255,255,0.12)",
+                    background: "rgba(255,255,255,0.04)",
+                    color: "rgba(255,255,255,0.75)",
+                    padding: "10px 14px",
+                    fontSize: 11,
+                    fontWeight: 800,
+                    letterSpacing: "0.08em",
+                    textTransform: "uppercase",
+                    cursor: isMentorLoading ? "wait" : "pointer",
+                  }}
+                >
+                  New Practice Question
+                </button>
+              </div>
+
+              {mentorTargetKey ? null : (
+                <MentorResponsePanel
+                  response={mentorResponse}
+                  error={mentorError}
+                  isLoading={isMentorLoading}
+                />
+              )}
+            </div>
 
             <button
               onClick={beginInterview}

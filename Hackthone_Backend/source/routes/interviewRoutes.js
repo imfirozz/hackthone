@@ -13,6 +13,7 @@ const {
   generateInterviewQuestion,
   normalizeFocusAreas,
 } = require("../services/aiInterviewQuestionGenerator");
+const { createInterviewMentorResponse } = require("../services/aiInterviewMentor");
 const {
   getOrCreateInterviewSession,
   getQuestionProgression,
@@ -418,6 +419,35 @@ const handleInterviewQuestionGeneration = async (req, res) => {
   }
 };
 
+const handleInterviewMentor = async (req, res) => {
+  try {
+    const result = await createInterviewMentorResponse({
+      body: req.body,
+      user: req.result || null,
+    });
+
+    if (result?.error) {
+      return res.status(result.error.status || 400).json({
+        message: result.error.message || "Failed to generate mentor response.",
+      });
+    }
+
+    return res.status(200).json({
+      message: "Mentor response generated successfully",
+      mentor: result.mentor,
+      mode: result.mode,
+      intent: result.intent,
+      profile: result.profile,
+      data: result.data,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Failed to generate mentor response",
+      error: error.message,
+    });
+  }
+};
+
 const handleNextQuestion = async (req, res) => {
   try {
     const validation = buildQuestionRequestValidation(req.body);
@@ -610,6 +640,8 @@ interviewRouter.post("/submit-answer", handleInterviewEvaluation);
 interviewRouter.post("/question", handleInterviewQuestionGeneration);
 interviewRouter.post("/generate-question", handleInterviewQuestionGeneration);
 interviewRouter.post("/next-question", handleNextQuestion);
+interviewRouter.post("/mentor", handleInterviewMentor);
+interviewRouter.post("/coach", handleInterviewMentor);
 interviewRouter.post("/transcribe-audio", handleAudioTranscription);
 interviewRouter.post("/test-engine", handleInterviewEngineTest);
 interviewRouter.post("/simulate-engine", handleInterviewEngineTest);
