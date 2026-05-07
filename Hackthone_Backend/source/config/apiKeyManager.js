@@ -12,7 +12,7 @@ class ApiKeyManager {
     this.keyFailureCount = {}; // Track failures per key
     this.keyLastFailureTime = {}; // Track when key last failed
     this.keyRetryDelay = 60000; // 1 minute retry delay for failed keys
-    this.maxFailuresBefore Rotation = 3; // Switch after 3 failures
+    this.maxFailuresBeforeRotation = 3; // Switch after 3 failures
     
     // Initialize failure tracking
     this.apiKeys.forEach((_, index) => {
