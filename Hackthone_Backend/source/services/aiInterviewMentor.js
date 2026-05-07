@@ -406,6 +406,75 @@ Respond concisely. Use markdown. Keep it brief and clear.
   }
 };
 
+const buildGeneralChatFallback = (message = "") => {
+  const msg = cleanText(message).toLowerCase();
+
+  if (/^(hi|hello|hey|howdy|yo|sup|greetings)/i.test(msg) || /how are you/i.test(msg)) {
+    return {
+      reply: "Hey there! 👋 I'm your AI Mentor, ready to help with **coding**, **DSA**, **system design**, **career guidance**, and **interview prep**.\n\nJust ask me anything — like *\"explain closures in JS\"* or *\"how does React virtual DOM work?\"*",
+    };
+  }
+
+  if (/\breact\b/i.test(msg)) {
+    return {
+      reply: "**React** is a JavaScript library for building user interfaces using reusable components.\n\n**Key concepts:**\n- **Components** — reusable UI building blocks\n- **JSX** — HTML-like syntax in JavaScript\n- **Virtual DOM** — efficient UI updates by diffing\n- **Hooks** — `useState`, `useEffect` for state & side effects\n- **One-way data flow** — props flow parent → child\n\nWant me to dive deeper into any of these?",
+    };
+  }
+
+  if (/\b(javascript|js)\b/i.test(msg)) {
+    return {
+      reply: "**JavaScript** is the language of the web — runs in browsers and on servers (Node.js).\n\n**Core topics:** closures, promises/async-await, prototypes, event loop, ES6+ features (arrow functions, destructuring, modules).\n\nWhat specific JS topic would you like me to explain?",
+    };
+  }
+
+  if (/\b(data structure|dsa|algorithm|linked list|binary tree|hash map|sorting|array)\b/i.test(msg)) {
+    return {
+      reply: "**Data Structures & Algorithms** are fundamental to problem-solving and interviews.\n\n**Essential DS:** Arrays, Linked Lists, Stacks, Queues, Hash Maps, Trees, Graphs, Heaps\n\n**Key algorithms:** Binary Search, BFS/DFS, Sorting (Quick, Merge), Dynamic Programming, Two Pointers, Sliding Window\n\nWhich topic would you like to explore?",
+    };
+  }
+
+  if (/\b(system design|scalab|architect|microservice|load balanc)\b/i.test(msg)) {
+    return {
+      reply: "**System Design** is about building scalable, reliable systems.\n\n**Key concepts:** Load balancing, caching (Redis), databases (SQL vs NoSQL), message queues, CDN, horizontal scaling, API gateway, microservices.\n\nWant me to walk through a specific system design problem?",
+    };
+  }
+
+  if (/\b(career|job|salary|resume|placement|hire|switch)\b/i.test(msg)) {
+    return {
+      reply: "For **career guidance**, here are key areas to focus on:\n\n- **Build projects** that solve real problems\n- **Master DSA** — most interviews test this\n- **Practice system design** for senior roles\n- **Contribute to open source** for visibility\n- **Network** on LinkedIn and attend tech events\n\nWhat specific career question do you have?",
+    };
+  }
+
+  if (/\b(debug|fix|error|bug|not working|issue)\b/i.test(msg)) {
+    return {
+      reply: "For **debugging**, try this systematic approach:\n\n1. **Read the error message** carefully — it usually tells you the file and line\n2. **Check the console/logs** for stack traces\n3. **Isolate the problem** — comment out code to find the breaking point\n4. **Google the error** — Stack Overflow usually has answers\n5. **Use breakpoints** instead of console.log\n\nPaste your specific error and I'll help you debug it!",
+    };
+  }
+
+  if (/\b(node|express|backend|api|rest|server)\b/i.test(msg)) {
+    return {
+      reply: "**Node.js + Express** is the most popular backend stack for JavaScript developers.\n\n**Key topics:** REST APIs, middleware, routing, authentication (JWT), database (MongoDB/PostgreSQL), error handling, deployment.\n\nWhat backend topic do you want to learn about?",
+    };
+  }
+
+  if (/\b(css|html|frontend|tailwind|style|responsive)\b/i.test(msg)) {
+    return {
+      reply: "**Frontend fundamentals:**\n\n- **HTML** — semantic tags, accessibility\n- **CSS** — Flexbox, Grid, responsive design, animations\n- **Tailwind** — utility-first CSS framework\n- **Responsive** — media queries, mobile-first approach\n\nWhich frontend topic interests you?",
+    };
+  }
+
+  if (/\b(python|java|c\+\+|golang|rust|typescript)\b/i.test(msg)) {
+    const lang = msg.match(/\b(python|java|c\+\+|golang|rust|typescript)\b/i)?.[1] || "that language";
+    return {
+      reply: `Great choice! **${lang}** is widely used in the industry.\n\nI can help you with:\n- Core concepts and syntax\n- Common interview questions\n- Best practices and patterns\n- Project ideas\n\nWhat would you like to know about ${lang}?`,
+    };
+  }
+
+  return {
+    reply: "I'm your AI Mentor! I can help with:\n\n- 💻 **Coding** — any language, any concept\n- 📊 **DSA** — data structures and algorithms\n- 🏗️ **System Design** — scalable architectures\n- 🎯 **Interview Prep** — mock interviews and feedback\n- 🚀 **Career** — guidance, roadmaps, resume tips\n\nJust ask me anything!",
+  };
+};
+
 const buildGuestModePrompt = (invalidSkills = []) => ({
   needsInput: true,
   reply: invalidSkills.length
@@ -1136,21 +1205,22 @@ const createInterviewMentorResponse = async ({ body = {}, user = null }) => {
   if (conversationMode === "general") {
     const userMessage = normalizedBody.message || "Hello";
     const guestProfile = buildGuestProfile();
+    const profileForChat = user ? await buildPersonalizedProfile(user) : guestProfile;
     const aiResponse = await generateGeneralChatWithGemini({
       message: userMessage,
-      profile: user ? await buildPersonalizedProfile(user) : guestProfile,
+      profile: profileForChat,
       user,
     });
+
+    const fallbackReply = buildGeneralChatFallback(userMessage);
 
     return {
       mentor: aiResponse ? "gemini" : "fallback",
       mode: user ? "personalized" : "guest",
       intent: "general_chat",
       conversationMode: "general",
-      profile: buildProfileSummary(user ? await buildPersonalizedProfile(user) : guestProfile),
-      data: aiResponse || {
-        reply: "Hi! I'm your AI Mentor. I can help with coding, DSA, system design, career guidance, interview prep, and much more. What would you like to explore?",
-      },
+      profile: buildProfileSummary(profileForChat),
+      data: aiResponse || fallbackReply,
     };
   }
 
