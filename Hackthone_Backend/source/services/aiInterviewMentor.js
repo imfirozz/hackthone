@@ -389,10 +389,19 @@ Respond concisely. Use markdown. Keep it brief and clear.
       model: GEMINI_MODEL,
       contents,
     });
-    const rawText = typeof response.text === "string" ? response.text : "";
-    if (!rawText) return null;
+    const rawText =
+      typeof response.text === "string"
+        ? response.text
+        : typeof response.text === "function"
+          ? response.text()
+          : "";
+    if (!rawText) {
+      console.log("General chat: Gemini returned empty response");
+      return null;
+    }
     return { reply: rawText.trim() };
-  } catch {
+  } catch (error) {
+    console.error("General chat Gemini error:", error?.message || error);
     return null;
   }
 };
