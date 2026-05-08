@@ -715,6 +715,13 @@ const normalizeMentorPayload = (value = {}) => {
   const question = cleanText(value?.question);
   const answer = cleanText(value?.answer);
   const company = cleanText(value?.company);
+  const rawDifficulty = cleanText(
+    value?.difficulty || value?.level || value?.difficultyLevel,
+  );
+  const rawInterviewType = cleanText(
+    value?.interviewType || value?.round || value?.interviewRound,
+  );
+  const rawDomain = cleanText(value?.domain || value?.role || value?.preferredRole);
   const difficulty = normalizeDifficulty(
     value?.difficulty || value?.level || value?.difficultyLevel,
   );
@@ -749,7 +756,79 @@ const normalizeMentorPayload = (value = {}) => {
     intent,
     explicitSkill,
     skillAnalysis,
+    setupMode: cleanText(value?.setupMode).toLowerCase(),
+    hasProvidedDifficulty: Boolean(rawDifficulty),
+    hasProvidedInterviewType: Boolean(rawInterviewType),
+    hasProvidedDomain: Boolean(rawDomain),
   };
+};
+
+const hasProfileIdentity = (user = null) =>
+  Boolean(
+    cleanText(user?.email) ||
+      cleanText(user?.name) ||
+      cleanText(user?.firstName) ||
+      cleanText(user?.lastName),
+  );
+
+const validateMentorQuestionAccess = ({ normalizedBody, user = null, profile = null }) => {
+  const isLoggedIn = Boolean(user?._id);
+  const hasSkill = normalizedBody.skillAnalysis.validSkills.length > 0;
+  const hasConfig =
+    normalizedBody.hasProvidedDomain &&
+    normalizedBody.hasProvidedInterviewType &&
+    normalizedBody.hasProvidedDifficulty;
+  const isProfileMode = normalizedBody.setupMode === "profile";
+  const resumeSkillsCount = Array.isArray(profile?.resumeSkills)
+    ? profile.resumeSkills.length
+    : 0;
+
+  if (!isLoggedIn) {
+    if (!hasConfig || !hasSkill) {
+      return {
+        error: {
+          status: 400,
+          message:
+            "Guest interview question generation requires role/domain, at least one skill, interview type, and difficulty.",
+        },
+      };
+    }
+    return null;
+  }
+
+  if (!hasProfileIdentity(user)) {
+    return {
+      error: {
+        status: 400,
+        message: "Complete your profile before generating interview questions.",
+      },
+    };
+  }
+
+  if (isProfileMode) {
+    if (resumeSkillsCount === 0) {
+      return {
+        error: {
+          status: 400,
+          message:
+            "Resume upload required before generating personalized interview questions.",
+        },
+      };
+    }
+    return null;
+  }
+
+  if (!hasConfig || !hasSkill) {
+    return {
+      error: {
+        status: 400,
+        message:
+          "Manual interview question generation requires role/domain, at least one skill, interview type, and difficulty.",
+      },
+    };
+  }
+
+  return null;
 };
 
 const loadLatestResumeRecord = async (userId) =>
@@ -1427,6 +1506,15 @@ const createInterviewMentorResponse = async ({ body = {}, user = null }) => {
     ? await buildPersonalizedProfile(user)
     : buildGuestProfile();
   const mode = user ? "personalized" : "guest";
+  const questionAccessViolation = validateMentorQuestionAccess({
+    normalizedBody,
+    user,
+    profile,
+  });
+
+  if (intent === "generate-question" && questionAccessViolation) {
+    return questionAccessViolation;
+  }
 
   if (!user) {
     const guestResponse = buildGuestMentorResponse({ normalizedBody, intent });

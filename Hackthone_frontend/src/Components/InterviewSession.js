@@ -763,7 +763,6 @@ export default function InterviewSession({ mode = "mock" }) {
   const navigate = useNavigate();
   const location = useLocation();
   const routeInterview = location.state?.interview || null;
-  const hasPresetConfig = Boolean(routeInterview);
   const activeMode = routeInterview?.mode || mode || "mock";
   const meta = MODE_META[activeMode] || MODE_META.mock;
   const timer = useTimer();
@@ -846,11 +845,11 @@ export default function InterviewSession({ mode = "mock" }) {
   const [mentorTargetKey, setMentorTargetKey] = useState("");
   const [interviewSetupMode, setInterviewSetupMode] = useState(defaultSetupMode);
   const [manualSetup, setManualSetup] = useState(() => ({
-    company: hasPresetConfig ? cleanText(iv.company) : "",
-    domain: hasPresetConfig ? cleanText(iv.domain) : "",
-    skillsText: hasPresetConfig ? uniqueList(iv.skills || []).join(", ") : "",
-    interviewType: hasPresetConfig ? cleanText(iv.round) : "",
-    difficulty: hasPresetConfig ? cleanText(iv.difficulty) : "",
+    company: "",
+    domain: "",
+    skillsText: "",
+    interviewType: "",
+    difficulty: "",
   }));
   const mediaRecorderRef = useRef(null);
   const audioStreamRef = useRef(null);
@@ -897,11 +896,11 @@ export default function InterviewSession({ mode = "mock" }) {
     setMentorTargetKey("");
     setInterviewSetupMode(defaultSetupMode);
     setManualSetup({
-      company: hasPresetConfig ? cleanText(iv.company) : "",
-      domain: hasPresetConfig ? cleanText(iv.domain) : "",
-      skillsText: hasPresetConfig ? uniqueList(iv.skills || []).join(", ") : "",
-      interviewType: hasPresetConfig ? cleanText(iv.round) : "",
-      difficulty: hasPresetConfig ? cleanText(iv.difficulty) : "",
+      company: "",
+      domain: "",
+      skillsText: "",
+      interviewType: "",
+      difficulty: "",
     });
   }, [iv, sessionIdentityKey]);
 
@@ -1410,13 +1409,21 @@ export default function InterviewSession({ mode = "mock" }) {
 
   const requestMentorAction = useCallback(
     (nextIntent, overrides = {}) => {
+      if (!canStartInterview && nextIntent === "generate-question") {
+        const message =
+          startValidationMessage ||
+          "Complete interview setup before generating a practice question.";
+        setMentorError(message);
+        setSessionError(message);
+        return Promise.resolve(null);
+      }
       setMentorIntent(nextIntent);
       return runMentorRequest({
         ...overrides,
         intent: nextIntent,
       }).catch(() => {});
     },
-    [runMentorRequest],
+    [canStartInterview, runMentorRequest, startValidationMessage],
   );
 
   const loadNextQuestion = useCallback(
@@ -2774,7 +2781,7 @@ export default function InterviewSession({ mode = "mock" }) {
                       message: mentorPrompt,
                     })
                   }
-                  disabled={isMentorLoading}
+                  disabled={isMentorLoading || !canStartInterview}
                   style={{
                     borderRadius: 8,
                     border: "1px solid rgba(255,255,255,0.12)",
@@ -2785,7 +2792,8 @@ export default function InterviewSession({ mode = "mock" }) {
                     fontWeight: 800,
                     letterSpacing: "0.08em",
                     textTransform: "uppercase",
-                    cursor: isMentorLoading ? "wait" : "pointer",
+                    cursor: isMentorLoading ? "wait" : !canStartInterview ? "not-allowed" : "pointer",
+                    opacity: canStartInterview ? 1 : 0.5,
                   }}
                 >
                   New Practice Question
