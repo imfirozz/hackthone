@@ -62,8 +62,10 @@ function AppBackground({ mode = "default" }) {
     };
   }, []);
 
+  const backgroundClassName = `app-background ${mode === "home" ? "app-background--home" : ""}`;
+
   return (
-    <div className="app-background" aria-hidden="true">
+    <div className={backgroundClassName} aria-hidden="true">
       {showSpline ? (
         <>
           <div className={`app-spline-wrap ${mode === "home" ? "app-spline-wrap--home" : ""}`}>

@@ -87,6 +87,16 @@ body {
   z-index: 1;
 }
 
+.app-background--home::before {
+  background:
+    radial-gradient(circle at center, transparent 28%, rgba(0, 0, 0, 0.52) 70%, rgba(0, 0, 0, 0.84) 100%),
+    linear-gradient(180deg, rgba(0, 0, 0, 0.2) 0%, rgba(0, 0, 0, 0.62) 100%);
+}
+
+.app-background--home::after {
+  opacity: 0.22;
+}
+
 .app-spline-wrap {
   position: absolute;
   top: -6%;
@@ -99,10 +109,10 @@ body {
 }
 
 .app-spline-wrap--home {
-  top: 8%;
-  right: -4%;
+  top: 6%;
+  right: -2%;
   bottom: auto;
-  left: 40%;
+  left: 34%;
   align-items: flex-start;
 }
 
@@ -118,13 +128,13 @@ body {
 }
 
 .app-spline-viewer--home {
-  width: min(46vw, 720px);
-  height: min(64vh, 700px);
-  min-height: 500px;
-  transform: translate3d(-8%, -1%, 0) scale(1.04);
+  width: min(54vw, 860px);
+  height: min(72vh, 780px);
+  min-height: 560px;
+  transform: translate3d(-14%, -2%, 0) scale(1.08);
   transform-origin: top right;
-  filter: brightness(1) saturate(1.08) contrast(1.1);
-  opacity: 0.74;
+  filter: brightness(1.08) saturate(1.12) contrast(1.12);
+  opacity: 0.9;
 }
 
 .app-spline-viewer spline-viewer {
@@ -175,17 +185,17 @@ body {
   }
 
   .app-spline-wrap--home {
-    top: 10%;
-    right: -10%;
-    left: 36%;
+    top: 8%;
+    right: -6%;
+    left: 30%;
   }
 
   .app-spline-viewer--home {
-    width: min(52vw, 640px);
-    height: min(56vh, 620px);
-    min-height: 420px;
-    transform: translate3d(-7%, 0, 0) scale(1.02);
-    opacity: 0.62;
+    width: min(60vw, 760px);
+    height: min(62vh, 700px);
+    min-height: 500px;
+    transform: translate3d(-12%, -1%, 0) scale(1.06);
+    opacity: 0.82;
   }
 }
 
@@ -208,19 +218,19 @@ body {
   }
 
   .app-spline-wrap--home {
-    top: 6%;
-    right: -8%;
-    left: 8%;
+    top: 5%;
+    right: -5%;
+    left: 0;
     justify-content: flex-end;
   }
 
   .app-spline-viewer--home {
-    width: min(88vw, 620px);
-    height: 44vh;
-    min-height: 320px;
-    transform: translate3d(-4%, 0, 0) scale(1);
+    width: min(96vw, 680px);
+    height: 52vh;
+    min-height: 380px;
+    transform: translate3d(-10%, 0, 0) scale(1.05);
     transform-origin: top right;
-    opacity: 0.46;
+    opacity: 0.68;
   }
 }
 
