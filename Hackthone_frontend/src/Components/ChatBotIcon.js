@@ -18,6 +18,8 @@ const CHAT_STORAGE_PREFIX = "aix_interview_mentor_v3";
 const MAX_STORED_MESSAGES = 18;
 const PANEL_WIDTH = 440;
 const PANEL_HALF_SCREEN_WIDTH = "min(50vw, 760px)";
+const CHATBOT_ICON_URL =
+  "https://imgs.search.brave.com/cMkNORWREXAyZ_e4Ex1j4ornpYNkpPemUbd_AdknxY4/rs:fit:860:0:0:0/g:ce/aHR0cHM6Ly9pLnBp/bmltZy5jb20vb3Jp/Z2luYWxzL2NmL2Jl/L2EwL2NmYmVhMDNm/MTcwNTc4Zjk5ODM1/MzJkNTBiMzFkYjQ2/LmpwZw";
 
 const INTERVIEW_TYPE_OPTIONS = [
   { value: "technical", label: "Technical" },
@@ -2416,9 +2418,25 @@ export default function ChatBotIcon() {
               fontSize: isOpen ? 28 : 22,
               fontWeight: 800,
               letterSpacing: "-0.02em",
+              lineHeight: 1,
             }}
           >
-            {isOpen ? "×" : "AI"}
+            {isOpen ? (
+              "×"
+            ) : (
+              <img
+                src={CHATBOT_ICON_URL}
+                alt="Chatbot"
+                style={{
+                  width: 46,
+                  height: 46,
+                  borderRadius: "50%",
+                  objectFit: "cover",
+                  border: "2px solid rgba(255,255,255,0.25)",
+                  boxShadow: "0 6px 14px rgba(2,6,23,0.35)",
+                }}
+              />
+            )}
           </span>
 
           <span
