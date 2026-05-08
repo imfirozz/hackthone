@@ -2388,30 +2388,19 @@ export default function ChatBotIcon() {
           style={{
             background: isOpen
               ? "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)"
-              : "linear-gradient(135deg, #3b82f6 0%, #06b6d4 50%, #8b5cf6 100%)",
+              : "transparent",
             boxShadow: isHovered
               ? isOpen
                 ? "0 8px 32px rgba(239,68,68,0.5)"
-                : "0 8px 32px rgba(59,130,246,0.5), 0 0 60px rgba(6,182,212,0.3)"
+                : "0 10px 26px rgba(2,6,23,0.45)"
               : isOpen
                 ? "0 4px 20px rgba(239,68,68,0.35)"
-                : "0 4px 20px rgba(59,130,246,0.35), 0 0 40px rgba(6,182,212,0.15)",
+                : "0 6px 18px rgba(2,6,23,0.35)",
             transform: isHovered ? "scale(1.1)" : "scale(1)",
             transition: "all 0.35s cubic-bezier(0.4, 0, 0.2, 1)",
           }}
           className="relative flex h-16 w-16 items-center justify-center rounded-full text-white cursor-pointer"
         >
-          {!isOpen ? (
-            <span
-              className="absolute inset-0 rounded-full"
-              style={{
-                background: "linear-gradient(135deg, #3b82f6, #06b6d4)",
-                animation: "chatbot-pulse 2.5s cubic-bezier(0.4, 0, 0.6, 1) infinite",
-                opacity: 0.4,
-              }}
-            />
-          ) : null}
-
           <span
             className="relative z-10"
             style={{
@@ -2428,12 +2417,12 @@ export default function ChatBotIcon() {
                 src={CHATBOT_ICON_URL}
                 alt="Chatbot"
                 style={{
-                  width: 46,
-                  height: 46,
+                  width: 54,
+                  height: 54,
                   borderRadius: "50%",
                   objectFit: "cover",
-                  border: "2px solid rgba(255,255,255,0.25)",
-                  boxShadow: "0 6px 14px rgba(2,6,23,0.35)",
+                  border: "none",
+                  boxShadow: "none",
                 }}
               />
             )}
