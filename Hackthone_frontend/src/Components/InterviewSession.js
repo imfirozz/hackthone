@@ -644,13 +644,6 @@ function SplineOrb() {
     <div className="arena-spline-viewer" style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "center" }}>
       {/* Spline background layer */}
       <div ref={splineRef} style={{ position: "absolute", inset: 0, zIndex: 1 }} />
-      {/* Always-visible AI orb image */}
-      <img
-        src={new URL("../assets/ai-orb.png", import.meta.url)}
-        alt="AI Interviewer"
-        className="arena-orb-image"
-        draggable="false"
-      />
     </div>
   );
 }

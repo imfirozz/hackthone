@@ -89,16 +89,24 @@ body {
 
 .app-spline-wrap {
   position: absolute;
-  inset: -4%;
+  top: -6%;
+  right: -10%;
+  bottom: -4%;
+  left: 38%;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
 }
 
 .app-spline-viewer {
   display: block;
-  width: 100%;
+  width: min(62vw, 980px);
   height: 100%;
-  transform: scale(1.08);
-  filter: brightness(0.92) saturate(1.1) contrast(1.14);
-  opacity: 0.98;
+  min-height: 100vh;
+  transform: translate3d(6%, 2%, 0) scale(1.02);
+  transform-origin: center right;
+  filter: brightness(0.9) saturate(1.06) contrast(1.08);
+  opacity: 0.92;
 }
 
 .app-spline-viewer spline-viewer {
@@ -134,6 +142,38 @@ body {
     linear-gradient(180deg, rgba(2, 6, 23, 0.18), rgba(2, 6, 23, 0.9));
   filter: blur(10px);
   opacity: 0.94;
+}
+
+@media (max-width: 1180px) {
+  .app-spline-wrap {
+    right: -16%;
+    left: 32%;
+  }
+
+  .app-spline-viewer {
+    width: min(72vw, 900px);
+    transform: translate3d(10%, 4%, 0) scale(1);
+    opacity: 0.82;
+  }
+}
+
+@media (max-width: 860px) {
+  .app-spline-wrap {
+    top: 4%;
+    right: -8%;
+    bottom: auto;
+    left: 0;
+    justify-content: center;
+  }
+
+  .app-spline-viewer {
+    width: min(108vw, 760px);
+    height: 58vh;
+    min-height: 420px;
+    transform: translate3d(0, 0, 0) scale(1.02);
+    transform-origin: top center;
+    opacity: 0.38;
+  }
 }
 
 .interviewer-stage-panel {
@@ -1055,33 +1095,6 @@ body {
   width: 100%;
   height: 100%;
   min-height: 260px;
-}
-
-.arena-orb-image {
-  position: relative;
-  z-index: 2;
-  width: clamp(200px, 50%, 380px);
-  height: auto;
-  object-fit: contain;
-  border-radius: 50%;
-  filter: brightness(1.05) saturate(1.15) drop-shadow(0 0 40px rgba(59, 130, 246, 0.35)) drop-shadow(0 0 80px rgba(249, 115, 22, 0.2));
-  animation: orb-float 4s ease-in-out infinite, orb-glow 3s ease-in-out infinite alternate;
-  pointer-events: none;
-  user-select: none;
-}
-
-@keyframes orb-float {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-12px); }
-}
-
-@keyframes orb-glow {
-  0% {
-    filter: brightness(1.05) saturate(1.15) drop-shadow(0 0 40px rgba(59, 130, 246, 0.35)) drop-shadow(0 0 80px rgba(249, 115, 22, 0.2));
-  }
-  100% {
-    filter: brightness(1.15) saturate(1.25) drop-shadow(0 0 60px rgba(59, 130, 246, 0.5)) drop-shadow(0 0 100px rgba(249, 115, 22, 0.35));
-  }
 }
 .arena-spline-footer {
   display: flex;

@@ -48,7 +48,7 @@ function AppBackground() {
 
     container.innerHTML = "";
     const viewer = document.createElement("spline-viewer");
-    viewer.setAttribute("url", "https://prod.spline.design/k78XjvdTnIDSn02B/scene.splinecode");
+    viewer.setAttribute("url", "https://prod.spline.design/Binwrg6ftdMIcBpw/scene.splinecode");
     viewer.style.cssText = "display:block;width:100%;height:100%;";
     container.appendChild(viewer);
 
