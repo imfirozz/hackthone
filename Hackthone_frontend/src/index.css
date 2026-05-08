@@ -98,6 +98,14 @@ body {
   justify-content: flex-end;
 }
 
+.app-spline-wrap--home {
+  top: 8%;
+  right: -8%;
+  bottom: auto;
+  left: 48%;
+  align-items: flex-start;
+}
+
 .app-spline-viewer {
   display: block;
   width: min(62vw, 980px);
@@ -107,6 +115,16 @@ body {
   transform-origin: center right;
   filter: brightness(0.9) saturate(1.06) contrast(1.08);
   opacity: 0.92;
+}
+
+.app-spline-viewer--home {
+  width: min(38vw, 620px);
+  height: min(58vh, 620px);
+  min-height: 440px;
+  transform: translate3d(0, 0, 0) scale(0.98);
+  transform-origin: top right;
+  filter: brightness(0.92) saturate(1.02) contrast(1.04);
+  opacity: 0.52;
 }
 
 .app-spline-viewer spline-viewer {
@@ -155,6 +173,19 @@ body {
     transform: translate3d(10%, 4%, 0) scale(1);
     opacity: 0.82;
   }
+
+  .app-spline-wrap--home {
+    top: 10%;
+    right: -16%;
+    left: 44%;
+  }
+
+  .app-spline-viewer--home {
+    width: min(44vw, 560px);
+    height: min(48vh, 520px);
+    min-height: 360px;
+    opacity: 0.42;
+  }
 }
 
 @media (max-width: 860px) {
@@ -173,6 +204,22 @@ body {
     transform: translate3d(0, 0, 0) scale(1.02);
     transform-origin: top center;
     opacity: 0.38;
+  }
+
+  .app-spline-wrap--home {
+    top: 6%;
+    right: -10%;
+    left: 18%;
+    justify-content: flex-end;
+  }
+
+  .app-spline-viewer--home {
+    width: min(82vw, 520px);
+    height: 38vh;
+    min-height: 260px;
+    transform: translate3d(0, 0, 0) scale(0.96);
+    transform-origin: top right;
+    opacity: 0.26;
   }
 }
 

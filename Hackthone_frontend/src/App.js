@@ -39,8 +39,9 @@ function ScrollToTop() {
   return null;
 }
 
-function AppBackground({ showSpline = true }) {
+function AppBackground({ mode = "default" }) {
   const splineRef = React.useRef(null);
+  const showSpline = mode !== "none";
 
   React.useEffect(() => {
     if (!showSpline) {
@@ -65,8 +66,8 @@ function AppBackground({ showSpline = true }) {
     <div className="app-background" aria-hidden="true">
       {showSpline ? (
         <>
-          <div className="app-spline-wrap">
-            <div className="app-spline-viewer" ref={splineRef} />
+          <div className={`app-spline-wrap ${mode === "home" ? "app-spline-wrap--home" : ""}`}>
+            <div className={`app-spline-viewer ${mode === "home" ? "app-spline-viewer--home" : ""}`} ref={splineRef} />
           </div>
           <div className="app-spline-badge-mask" />
         </>
@@ -124,11 +125,12 @@ function RouteSkeletonOverlay() {
 
 function AppFrame() {
   const { pathname } = useLocation();
-  const hideHomeRobot = pathname === "/" || pathname === "/home";
+  const isHomeRoute = pathname === "/" || pathname === "/home";
+  const splineMode = isHomeRoute ? "home" : "default";
 
   return (
     <div className="app-shell site-theme">
-      <AppBackground showSpline={!hideHomeRobot} />
+      <AppBackground mode={splineMode} />
       <div className="app-content">
         <ScrollToTop />
         <Routes>
