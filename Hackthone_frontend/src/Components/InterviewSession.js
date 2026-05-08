@@ -705,6 +705,13 @@ const uniqueList = (values = []) =>
 
     return items;
   }, []);
+const parseSkillsInput = (value = "") =>
+  uniqueList(
+    String(value)
+      .split(/,|;|\||\n/)
+      .map((item) => cleanText(item))
+      .filter(Boolean),
+  );
 
 const isMeaningfulAnswer = (value = "") =>
   !/^(Skipped by candidate\.?|No answer provided\.?)$/i.test(cleanText(value));
@@ -756,6 +763,7 @@ export default function InterviewSession({ mode = "mock" }) {
   const navigate = useNavigate();
   const location = useLocation();
   const routeInterview = location.state?.interview || null;
+  const hasPresetConfig = Boolean(routeInterview);
   const activeMode = routeInterview?.mode || mode || "mock";
   const meta = MODE_META[activeMode] || MODE_META.mock;
   const timer = useTimer();
@@ -777,6 +785,27 @@ export default function InterviewSession({ mode = "mock" }) {
     [baseFallbackInterview, routeInterview],
   );
   const userProfile = useMemo(() => buildUserProfile(), []);
+  const authSession = useMemo(() => getStoredAuthSession(), []);
+  const authUser = authSession?.user || {};
+  const isLoggedIn = useMemo(
+    () =>
+      Boolean(
+        authSession?.token &&
+          (authUser?._id || authUser?.id || authUser?.email || authUser?.name),
+      ),
+    [authSession, authUser],
+  );
+  const hasProfileData = useMemo(
+    () =>
+      Boolean(
+        cleanText(authUser?.name) ||
+          cleanText(authUser?.firstName) ||
+          cleanText(authUser?.lastName) ||
+          cleanText(authUser?.email),
+      ),
+    [authUser],
+  );
+  const defaultSetupMode = isLoggedIn ? "profile" : "manual";
   const voiceFeaturesSupported = useMemo(() => supportsVoiceTranscription(), []);
   const totalQuestions = Math.max(1, Number(iv.questions) || 8);
   const sessionIdentityKey = `${activeMode}:${iv.title}:${iv.company}:${iv.round}:${iv.domain}`;
@@ -815,11 +844,20 @@ export default function InterviewSession({ mode = "mock" }) {
   const [mentorError, setMentorError] = useState("");
   const [isMentorLoading, setIsMentorLoading] = useState(false);
   const [mentorTargetKey, setMentorTargetKey] = useState("");
+  const [interviewSetupMode, setInterviewSetupMode] = useState(defaultSetupMode);
+  const [manualSetup, setManualSetup] = useState(() => ({
+    company: hasPresetConfig ? cleanText(iv.company) : "",
+    domain: hasPresetConfig ? cleanText(iv.domain) : "",
+    skillsText: hasPresetConfig ? uniqueList(iv.skills || []).join(", ") : "",
+    interviewType: hasPresetConfig ? cleanText(iv.round) : "",
+    difficulty: hasPresetConfig ? cleanText(iv.difficulty) : "",
+  }));
   const mediaRecorderRef = useRef(null);
   const audioStreamRef = useRef(null);
   const audioChunksRef = useRef([]);
   const userVideoRef = useRef(null);
   const cameraStreamRef = useRef(null);
+  const resumeInputRef = useRef(null);
 
   useEffect(() => {
     stopSpeaking();
@@ -857,6 +895,14 @@ export default function InterviewSession({ mode = "mock" }) {
     setMentorError("");
     setIsMentorLoading(false);
     setMentorTargetKey("");
+    setInterviewSetupMode(defaultSetupMode);
+    setManualSetup({
+      company: hasPresetConfig ? cleanText(iv.company) : "",
+      domain: hasPresetConfig ? cleanText(iv.domain) : "",
+      skillsText: hasPresetConfig ? uniqueList(iv.skills || []).join(", ") : "",
+      interviewType: hasPresetConfig ? cleanText(iv.round) : "",
+      difficulty: hasPresetConfig ? cleanText(iv.difficulty) : "",
+    });
   }, [iv, sessionIdentityKey]);
 
   useEffect(() => {
@@ -1002,6 +1048,74 @@ export default function InterviewSession({ mode = "mock" }) {
       ].filter((section) => section.values.length > 0),
     [resumeInsights],
   );
+  const resumeReadyForProfile = Boolean(resumeFileName && flattenedResumeSkills.length > 0);
+  const normalizedManualSetup = useMemo(() => {
+    const interviewType = cleanText(manualSetup.interviewType).toLowerCase();
+    const difficulty = cleanText(manualSetup.difficulty).toLowerCase();
+    return {
+      company: cleanText(manualSetup.company),
+      domain: cleanText(manualSetup.domain).toLowerCase(),
+      interviewType,
+      difficulty,
+      skills: parseSkillsInput(manualSetup.skillsText),
+    };
+  }, [manualSetup]);
+  const manualValidation = useMemo(() => {
+    const missing = {
+      domain: !normalizedManualSetup.domain,
+      skills: normalizedManualSetup.skills.length === 0,
+      interviewType: !["technical", "hr", "managerial"].includes(normalizedManualSetup.interviewType),
+      difficulty: !["easy", "medium", "hard"].includes(normalizedManualSetup.difficulty),
+    };
+    const missingLabels = [];
+    if (missing.domain) missingLabels.push("role/domain");
+    if (missing.skills) missingLabels.push("at least one skill");
+    if (missing.interviewType) missingLabels.push("interview type");
+    if (missing.difficulty) missingLabels.push("difficulty");
+    return {
+      isValid: missingLabels.length === 0,
+      missing,
+      message:
+        missingLabels.length > 0
+          ? `Complete required setup: ${missingLabels.join(", ")}.`
+          : "",
+    };
+  }, [normalizedManualSetup]);
+  const profileValidation = useMemo(() => {
+    if (!isLoggedIn) {
+      return {
+        isValid: false,
+        message: "Login is required before using resume/profile interview mode.",
+      };
+    }
+    if (!hasProfileData) {
+      return {
+        isValid: false,
+        message: "Complete your profile before starting an interview.",
+      };
+    }
+    if (!resumeReadyForProfile) {
+      return {
+        isValid: false,
+        message:
+          "Upload your resume and complete your profile before starting a personalized interview.",
+      };
+    }
+    return { isValid: true, message: "" };
+  }, [hasProfileData, isLoggedIn, resumeReadyForProfile]);
+  const canStartInterview =
+    !isBootstrapping &&
+    !isUploadingResume &&
+    (isLoggedIn
+      ? interviewSetupMode === "profile"
+        ? profileValidation.isValid
+        : manualValidation.isValid
+      : manualValidation.isValid);
+  const startValidationMessage = isLoggedIn
+    ? interviewSetupMode === "profile"
+      ? profileValidation.message
+      : manualValidation.message
+    : manualValidation.message;
   const mentorSkillPool = useMemo(
     () => uniqueList([...(activeConfig.skills || []), ...flattenedResumeSkills]).slice(0, 10),
     [activeConfig.skills, flattenedResumeSkills],
@@ -1347,6 +1461,11 @@ export default function InterviewSession({ mode = "mock" }) {
 
     setSessionError("");
 
+    if (!canStartInterview) {
+      setSessionError(startValidationMessage || "Complete interview setup before starting.");
+      return;
+    }
+
     if (responseModeAllowsVoice && !voiceFeaturesSupported) {
       setSessionError(
         "Voice mode is not available in this browser. Switch to Text mode or use Chrome/Edge for live transcription.",
@@ -1358,6 +1477,22 @@ export default function InterviewSession({ mode = "mock" }) {
 
     try {
       const parsedResume = await uploadResumeIfNeeded();
+      const manualConfig = {
+        ...iv,
+        company: normalizedManualSetup.company || iv.company || "",
+        round: normalizedManualSetup.interviewType || iv.round,
+        domain: normalizedManualSetup.domain || iv.domain,
+        difficulty: normalizedManualSetup.difficulty || iv.difficulty,
+        skills:
+          normalizedManualSetup.skills.length > 0
+            ? normalizedManualSetup.skills
+            : iv.skills || [],
+        focus: uniqueList([
+          ...(iv.focus || []),
+          ...(normalizedManualSetup.skills || []),
+        ]),
+        setupMode: "manual",
+      };
       const mergedConfig = {
         ...mergeResumeIntoInterviewConfig(iv, parsedResume),
         responseMode,
@@ -1365,17 +1500,27 @@ export default function InterviewSession({ mode = "mock" }) {
         resumeFileName: cleanText(resumeFile?.name || resumeFileName),
         resumeParser: cleanText(resumeParser),
         resumeSkills: parsedResume || resumeInsights || null,
+        setupMode: "profile",
       };
+      const nextConfig =
+        isLoggedIn && interviewSetupMode === "profile" ? mergedConfig : {
+          ...manualConfig,
+          responseMode,
+          questionTarget: totalQuestions,
+          resumeFileName: cleanText(resumeFile?.name || resumeFileName),
+          resumeParser: cleanText(resumeParser),
+          resumeSkills: parsedResume || resumeInsights || null,
+        };
       const freshSessionId = createInterviewSessionId();
 
-      setActiveConfig(mergedConfig);
+      setActiveConfig(nextConfig);
       setAnsweredQuestions([]);
       setExpandedReview(null);
       setSessionId(freshSessionId);
       await loadNextQuestion({
-        configOverride: mergedConfig,
+        configOverride: nextConfig,
         nextSessionId: freshSessionId,
-        difficultyOverride: mergedConfig.difficulty,
+        difficultyOverride: nextConfig.difficulty,
         reset: true,
       });
       setPhase("interview");
@@ -2123,6 +2268,251 @@ export default function InterviewSession({ mode = "mock" }) {
               ))}
             </div>
 
+            <div
+              style={{
+                marginBottom: 24,
+                border: "1px solid rgba(255,255,255,0.08)",
+                background: "rgba(255,255,255,0.03)",
+                borderRadius: 12,
+                padding: 16,
+                textAlign: "left",
+                display: "grid",
+                gap: 12,
+              }}
+            >
+              <p style={{ margin: 0, fontSize: 11, fontWeight: 800, color: "#FF5500", letterSpacing: "0.1em" }}>
+                INTERVIEW ACCESS SETUP
+              </p>
+              {!isLoggedIn ? (
+                <p style={{ margin: 0, fontSize: 12, color: "rgba(255,255,255,0.7)", lineHeight: 1.5 }}>
+                  Guest flow: choose role/domain, add at least one skill, select interview type, choose difficulty, then start.
+                </p>
+              ) : (
+                <div style={{ display: "grid", gap: 10 }}>
+                  <p style={{ margin: 0, fontSize: 12, color: "rgba(255,255,255,0.7)", lineHeight: 1.5 }}>
+                    Logged-in flow: choose <strong>Resume/Profile Interview</strong> or <strong>Manual Setup Interview</strong>.
+                  </p>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+                    <button
+                      type="button"
+                      onClick={() => setInterviewSetupMode("profile")}
+                      style={{
+                        borderRadius: 10,
+                        border:
+                          interviewSetupMode === "profile"
+                            ? "1px solid rgba(255,85,0,0.35)"
+                            : "1px solid rgba(255,255,255,0.12)",
+                        background:
+                          interviewSetupMode === "profile"
+                            ? "rgba(255,85,0,0.1)"
+                            : "rgba(255,255,255,0.03)",
+                        color: "#fff",
+                        padding: "10px 14px",
+                        fontSize: 12,
+                        fontWeight: 700,
+                        cursor: "pointer",
+                      }}
+                    >
+                      Use Resume Profile
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setInterviewSetupMode("manual")}
+                      style={{
+                        borderRadius: 10,
+                        border:
+                          interviewSetupMode === "manual"
+                            ? "1px solid rgba(255,85,0,0.35)"
+                            : "1px solid rgba(255,255,255,0.12)",
+                        background:
+                          interviewSetupMode === "manual"
+                            ? "rgba(255,85,0,0.1)"
+                            : "rgba(255,255,255,0.03)",
+                        color: "#fff",
+                        padding: "10px 14px",
+                        fontSize: 12,
+                        fontWeight: 700,
+                        cursor: "pointer",
+                      }}
+                    >
+                      Manual Setup Interview
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {isLoggedIn && interviewSetupMode === "profile" && !profileValidation.isValid ? (
+                <div
+                  style={{
+                    borderRadius: 12,
+                    border: "1px solid rgba(255,85,0,0.25)",
+                    background: "linear-gradient(135deg, rgba(255,85,0,0.1), rgba(15,23,42,0.25))",
+                    padding: 14,
+                    display: "grid",
+                    gap: 10,
+                  }}
+                >
+                  <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: "#fff" }}>
+                    Your AI mentor needs context before starting a personalized interview.
+                  </p>
+                  <p style={{ margin: 0, fontSize: 12, color: "rgba(255,255,255,0.75)", lineHeight: 1.5 }}>
+                    Upload your resume and complete your profile before starting a personalized interview.
+                  </p>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+                    <button
+                      type="button"
+                      onClick={() => resumeInputRef.current?.click()}
+                      style={{
+                        borderRadius: 10,
+                        border: "1px solid rgba(255,255,255,0.12)",
+                        background: "rgba(255,255,255,0.06)",
+                        color: "#fff",
+                        padding: "10px 14px",
+                        fontSize: 12,
+                        fontWeight: 700,
+                        cursor: "pointer",
+                      }}
+                    >
+                      Upload Resume
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setInterviewSetupMode("manual")}
+                      style={{
+                        borderRadius: 10,
+                        border: "1px solid rgba(255,255,255,0.12)",
+                        background: "rgba(255,255,255,0.03)",
+                        color: "rgba(255,255,255,0.9)",
+                        padding: "10px 14px",
+                        fontSize: 12,
+                        fontWeight: 700,
+                        cursor: "pointer",
+                      }}
+                    >
+                      Continue with Manual Setup
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+
+              {(interviewSetupMode === "manual" || !isLoggedIn) ? (
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+                    gap: 10,
+                  }}
+                >
+                  <label style={{ display: "grid", gap: 6 }}>
+                    <span style={{ fontSize: 11, color: "rgba(255,255,255,0.65)" }}>Role / Domain *</span>
+                    <input
+                      value={manualSetup.domain}
+                      onChange={(event) =>
+                        setManualSetup((prev) => ({ ...prev, domain: event.target.value }))
+                      }
+                      placeholder="backend, frontend, devops..."
+                      style={{
+                        borderRadius: 10,
+                        border: manualValidation.missing.domain
+                          ? "1px solid rgba(248,113,113,0.55)"
+                          : "1px solid rgba(255,255,255,0.12)",
+                        background: "rgba(15,23,42,0.5)",
+                        color: "#fff",
+                        padding: "10px 12px",
+                        fontSize: 12,
+                      }}
+                    />
+                  </label>
+                  <label style={{ display: "grid", gap: 6 }}>
+                    <span style={{ fontSize: 11, color: "rgba(255,255,255,0.65)" }}>Skills (comma-separated) *</span>
+                    <input
+                      value={manualSetup.skillsText}
+                      onChange={(event) =>
+                        setManualSetup((prev) => ({ ...prev, skillsText: event.target.value }))
+                      }
+                      placeholder="React, Node.js, MongoDB"
+                      style={{
+                        borderRadius: 10,
+                        border: manualValidation.missing.skills
+                          ? "1px solid rgba(248,113,113,0.55)"
+                          : "1px solid rgba(255,255,255,0.12)",
+                        background: "rgba(15,23,42,0.5)",
+                        color: "#fff",
+                        padding: "10px 12px",
+                        fontSize: 12,
+                      }}
+                    />
+                  </label>
+                  <label style={{ display: "grid", gap: 6 }}>
+                    <span style={{ fontSize: 11, color: "rgba(255,255,255,0.65)" }}>Interview Type *</span>
+                    <select
+                      value={manualSetup.interviewType}
+                      onChange={(event) =>
+                        setManualSetup((prev) => ({ ...prev, interviewType: event.target.value }))
+                      }
+                      style={{
+                        borderRadius: 10,
+                        border: manualValidation.missing.interviewType
+                          ? "1px solid rgba(248,113,113,0.55)"
+                          : "1px solid rgba(255,255,255,0.12)",
+                        background: "rgba(15,23,42,0.5)",
+                        color: "#fff",
+                        padding: "10px 12px",
+                        fontSize: 12,
+                      }}
+                    >
+                      <option value="">Select type</option>
+                      <option value="technical">Technical</option>
+                      <option value="hr">HR</option>
+                      <option value="managerial">Managerial</option>
+                    </select>
+                  </label>
+                  <label style={{ display: "grid", gap: 6 }}>
+                    <span style={{ fontSize: 11, color: "rgba(255,255,255,0.65)" }}>Difficulty *</span>
+                    <select
+                      value={manualSetup.difficulty}
+                      onChange={(event) =>
+                        setManualSetup((prev) => ({ ...prev, difficulty: event.target.value }))
+                      }
+                      style={{
+                        borderRadius: 10,
+                        border: manualValidation.missing.difficulty
+                          ? "1px solid rgba(248,113,113,0.55)"
+                          : "1px solid rgba(255,255,255,0.12)",
+                        background: "rgba(15,23,42,0.5)",
+                        color: "#fff",
+                        padding: "10px 12px",
+                        fontSize: 12,
+                      }}
+                    >
+                      <option value="">Select difficulty</option>
+                      <option value="easy">Easy</option>
+                      <option value="medium">Medium</option>
+                      <option value="hard">Hard</option>
+                    </select>
+                  </label>
+                  <label style={{ display: "grid", gap: 6 }}>
+                    <span style={{ fontSize: 11, color: "rgba(255,255,255,0.65)" }}>Company (optional)</span>
+                    <input
+                      value={manualSetup.company}
+                      onChange={(event) =>
+                        setManualSetup((prev) => ({ ...prev, company: event.target.value }))
+                      }
+                      placeholder="Google, Startup, Product company..."
+                      style={{
+                        borderRadius: 10,
+                        border: "1px solid rgba(255,255,255,0.12)",
+                        background: "rgba(15,23,42,0.5)",
+                        color: "#fff",
+                        padding: "10px 12px",
+                        fontSize: 12,
+                      }}
+                    />
+                  </label>
+                </div>
+              ) : null}
+            </div>
+
             <div className="resume-upload-shell" style={{ marginBottom: 24 }}>
               <button
                 type="button"
@@ -2145,6 +2535,7 @@ export default function InterviewSession({ mode = "mock" }) {
               </div>
               <label className="resume-upload-input-wrap">
                 <input
+                  ref={resumeInputRef}
                   type="file"
                   accept=".pdf"
                   onChange={handleResumeSelection}
@@ -2410,11 +2801,31 @@ export default function InterviewSession({ mode = "mock" }) {
               )}
             </div>
 
+            {canStartInterview ? null : (
+              <p
+                style={{
+                  margin: "0 0 10px",
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: "#fca5a5",
+                  textAlign: "center",
+                }}
+              >
+                {startValidationMessage || "Complete interview setup before starting."}
+              </p>
+            )}
             <button
               onClick={beginInterview}
               className="arena-btn arena-btn--submit"
-              style={{ padding: "16px 40px", fontSize: 14, borderRadius: 8 }}
-              disabled={isBootstrapping || isUploadingResume}
+              style={{
+                padding: "16px 40px",
+                fontSize: 14,
+                borderRadius: 8,
+                opacity: canStartInterview ? 1 : 0.45,
+                cursor: canStartInterview ? "pointer" : "not-allowed",
+                filter: canStartInterview ? "none" : "grayscale(0.3)",
+              }}
+              disabled={!canStartInterview}
             >
               <svg
                 style={{ width: 18, height: 18 }}

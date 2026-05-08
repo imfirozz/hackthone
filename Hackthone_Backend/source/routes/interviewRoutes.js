@@ -179,9 +179,30 @@ const buildEmptyListError = (fieldName) => ({
   message: `${fieldName} must include at least one non-empty value.`,
 });
 
-const buildQuestionRequestValidation = (body = {}) => {
+const hasResumeSkillsPayload = (resumeSkills = {}) =>
+  ["languages", "frameworks", "tools", "concepts"].some(
+    (key) => Array.isArray(resumeSkills?.[key]) && resumeSkills[key].length > 0,
+  );
+
+const hasProfileData = (user = null) => {
+  const profile = user || {};
+  return Boolean(
+    normalizeField(profile?.email) ||
+      normalizeField(profile?.name) ||
+      normalizeField(profile?.firstName) ||
+      normalizeField(profile?.lastName),
+  );
+};
+
+const validationError = (message, extra = {}) => ({
+  success: false,
+  message,
+  ...extra,
+});
+
+const buildQuestionRequestValidation = (body = {}, user = null) => {
   const company = normalizeField(body?.company);
-  const round = normalizeField(body?.round || body?.interviewRound) || "technical";
+  const round = normalizeField(body?.round || body?.interviewRound);
   const difficulty = normalizeField(body?.difficulty || body?.level || body?.difficultyLevel);
   const domain = normalizeField(body?.domain || body?.role);
   const skillAnalysis = analyzeSkills(body?.skills || body?.candidateSkills);
@@ -195,10 +216,14 @@ const buildQuestionRequestValidation = (body = {}) => {
   const resumeFileName = normalizeField(body?.resumeFileName);
   const resumeParser = normalizeField(body?.resumeParser);
   const resumeSkills = normalizeResumeSkills(body?.resumeSkills);
+  const setupMode = normalizeField(body?.setupMode).toLowerCase();
+  const isLoggedIn = Boolean(user?._id);
   const missingFields = [];
+  const hasValidSkills = skillAnalysis.validSkills.length > 0;
+  const hasResumeSkills = hasResumeSkillsPayload(resumeSkills);
 
-  if (!company) {
-    missingFields.push("company");
+  if (!round) {
+    missingFields.push("interviewType");
   }
 
   if (!difficulty) {
@@ -213,7 +238,7 @@ const buildQuestionRequestValidation = (body = {}) => {
     return {
       ok: false,
       status: 400,
-      error: buildRequiredFieldsError(missingFields),
+      error: validationError(buildRequiredFieldsError(missingFields).message),
     };
   }
 
@@ -221,7 +246,7 @@ const buildQuestionRequestValidation = (body = {}) => {
     return {
       ok: false,
       status: 400,
-      error: buildEmptyListError("skills"),
+      error: validationError(buildEmptyListError("skills").message),
     };
   }
 
@@ -229,7 +254,9 @@ const buildQuestionRequestValidation = (body = {}) => {
     return {
       ok: false,
       status: 400,
-      error: buildSkillValidationError(skillAnalysis),
+      error: validationError(buildSkillValidationError(skillAnalysis).message, {
+        invalidSkills: skillAnalysis.invalidSkills,
+      }),
     };
   }
 
@@ -237,18 +264,52 @@ const buildQuestionRequestValidation = (body = {}) => {
     return {
       ok: false,
       status: 400,
-      error: buildEmptyListError("focus"),
+      error: validationError(buildEmptyListError("focus").message),
     };
   }
 
-  if (skillAnalysis.validSkills.length === 0 && focus.length === 0) {
+  if (!hasValidSkills) {
     return {
       ok: false,
       status: 400,
-      error: {
-        message: "At least one valid skill or focus area is required.",
-      },
+      error: validationError(
+        "At least one valid technical skill is required before starting an interview.",
+      ),
     };
+  }
+
+  if (!isLoggedIn) {
+    if (setupMode === "profile") {
+      return {
+        ok: false,
+        status: 400,
+        error: validationError(
+          "Login is required before using resume/profile interview mode.",
+        ),
+      };
+    }
+  } else {
+    if (!hasProfileData(user)) {
+      return {
+        ok: false,
+        status: 400,
+        error: validationError(
+          "Complete your profile before starting an interview.",
+        ),
+      };
+    }
+
+    if (setupMode === "profile") {
+      if (!resumeFileName || !hasResumeSkills) {
+        return {
+          ok: false,
+          status: 400,
+          error: validationError(
+            "Resume upload required before starting personalized interview.",
+          ),
+        };
+      }
+    }
   }
 
   return {
@@ -270,6 +331,7 @@ const buildQuestionRequestValidation = (body = {}) => {
       resumeFileName,
       resumeParser,
       resumeSkills,
+      setupMode,
     },
   };
 };
@@ -388,7 +450,7 @@ const handleInterviewEvaluation = async (req, res) => {
 
 const handleInterviewQuestionGeneration = async (req, res) => {
   try {
-    const validation = buildQuestionRequestValidation(req.body);
+    const validation = buildQuestionRequestValidation(req.body, req.result || null);
 
     if (!validation.ok) {
       return res.status(validation.status).json(validation.error);
@@ -451,7 +513,7 @@ const handleInterviewMentor = async (req, res) => {
 
 const handleNextQuestion = async (req, res) => {
   try {
-    const validation = buildQuestionRequestValidation(req.body);
+    const validation = buildQuestionRequestValidation(req.body, req.result || null);
     const requestedSessionId = normalizeField(req.body?.sessionId) || buildDefaultSessionId(req);
     const reset = normalizeBoolean(req.body?.reset);
 
@@ -474,6 +536,7 @@ const handleNextQuestion = async (req, res) => {
       resumeFileName,
       resumeParser,
       resumeSkills,
+      setupMode,
     } = validation.value;
 
     const session = await getOrCreateInterviewSession({
@@ -493,6 +556,7 @@ const handleNextQuestion = async (req, res) => {
         resumeFileName,
         resumeParser,
         resumeSkills,
+        setupMode,
       },
       reset,
     });

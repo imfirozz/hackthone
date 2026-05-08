@@ -292,6 +292,9 @@ export function buildInterviewRequestPayload(config = {}, overrides = {}) {
           },
         }
       : {}),
+    ...(cleanText(overrides.setupMode || config.setupMode)
+      ? { setupMode: cleanText(overrides.setupMode || config.setupMode).toLowerCase() }
+      : {}),
     ...(overrides.sessionId ? { sessionId: cleanText(overrides.sessionId) } : {}),
     ...(overrides.reset ? { reset: true } : {}),
   };
