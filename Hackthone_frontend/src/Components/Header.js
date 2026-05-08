@@ -130,7 +130,7 @@ function HeaderNavigation({
 
         <div
           style={{
-            maxWidth: isScrolled ? "0px" : "220px",
+            maxWidth: isScrolled ? "0px" : authIdentity ? "400px" : "220px",
             opacity: isScrolled ? 0 : 1,
             overflow: "hidden",
             whiteSpace: "nowrap",
