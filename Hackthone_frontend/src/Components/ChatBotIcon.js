@@ -2399,7 +2399,7 @@ export default function ChatBotIcon() {
             transform: isHovered ? "scale(1.1)" : "scale(1)",
             transition: "all 0.35s cubic-bezier(0.4, 0, 0.2, 1)",
           }}
-          className="relative flex h-16 w-16 items-center justify-center rounded-full text-white cursor-pointer"
+          className="relative flex h-20 w-20 items-center justify-center rounded-full text-white cursor-pointer"
         >
           <span
             className="relative z-10"
@@ -2417,12 +2417,12 @@ export default function ChatBotIcon() {
                 src={CHATBOT_ICON_URL}
                 alt="Chatbot"
                 style={{
-                  width: 54,
-                  height: 54,
+                  width: 66,
+                  height: 66,
                   borderRadius: "50%",
                   objectFit: "cover",
-                  border: "none",
-                  boxShadow: "none",
+                  border: "3px solid #60a5fa",
+                  boxShadow: "0 0 0 3px rgba(15,23,42,0.85), 0 10px 28px rgba(96,165,250,0.32)",
                 }}
               />
             )}
