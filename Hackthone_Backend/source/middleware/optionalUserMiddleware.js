@@ -1,6 +1,7 @@
 const jwt = require("jsonwebtoken");
 const User = require("../Models/User");
 const redisClient = require("../config/redis");
+const { isMongoConnected } = require("../config/mongoRuntime");
 
 const optionalUserMiddleware = async (req, res, next) => {
   try {
@@ -45,9 +46,17 @@ const optionalUserMiddleware = async (req, res, next) => {
       return next();
     }
 
-    const result = await User.findById(payload._id);
-    if (result) {
-      req.result = result;
+    if (!isMongoConnected()) {
+      return next();
+    }
+
+    try {
+      const result = await User.findById(payload._id);
+      if (result) {
+        req.result = result;
+      }
+    } catch (_error) {
+      return next();
     }
 
     return next();

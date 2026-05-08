@@ -10,6 +10,9 @@
     "api/resume.js": {
       "maxDuration": 60
     },
+    "api/interview.js": {
+      "maxDuration": 60
+    },
     "api/records.js": {
       "maxDuration": 60
     },
@@ -25,6 +28,10 @@
     {
       "source": "/api/records/(.*)",
       "destination": "/api/records"
+    },
+    {
+      "source": "/api/interview/(.*)",
+      "destination": "/api/interview"
     },
     {
       "source": "/api/(.*)",

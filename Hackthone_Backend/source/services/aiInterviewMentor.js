@@ -11,6 +11,7 @@ const {
   buildCandidateDirectory,
   fetchInterviewRecords,
 } = require("./recordsService");
+const { withMongoFallback } = require("../config/mongoRuntime");
 
 const GEMINI_MODEL = "gemini-2.5-flash";
 
@@ -752,17 +753,22 @@ const normalizeMentorPayload = (value = {}) => {
 };
 
 const loadLatestResumeRecord = async (userId) =>
-  InterviewSessionRecord.findOne({
-    user: userId,
-    $or: [
-      { "resumeSkills.languages.0": { $exists: true } },
-      { "resumeSkills.frameworks.0": { $exists: true } },
-      { "resumeSkills.tools.0": { $exists: true } },
-      { "resumeSkills.concepts.0": { $exists: true } },
-    ],
-  })
-    .sort({ updatedAt: -1 })
-    .lean();
+  withMongoFallback({
+    label: "Mentor profile skipping latest resume lookup",
+    fallbackValue: null,
+    operation: () =>
+      InterviewSessionRecord.findOne({
+        user: userId,
+        $or: [
+          { "resumeSkills.languages.0": { $exists: true } },
+          { "resumeSkills.frameworks.0": { $exists: true } },
+          { "resumeSkills.tools.0": { $exists: true } },
+          { "resumeSkills.concepts.0": { $exists: true } },
+        ],
+      })
+        .sort({ updatedAt: -1 })
+        .lean(),
+  });
 
 const deriveConsistency = (records = [], candidate = null) => {
   if (records.length < 2) {
@@ -800,12 +806,17 @@ const deriveDifficultyTrend = (sessions = []) => {
 
 const buildPersonalizedProfile = async (user) => {
   const [records, latestResumeRecord, persistedSessions] = await Promise.all([
-    fetchInterviewRecords({ scope: "mine", user }),
+    fetchInterviewRecords({ scope: "mine", user }).catch(() => []),
     loadLatestResumeRecord(user._id),
-    InterviewSessionRecord.find({ user: user._id })
-      .sort({ updatedAt: -1 })
-      .limit(8)
-      .lean(),
+    withMongoFallback({
+      label: "Mentor profile skipping persisted session history",
+      fallbackValue: [],
+      operation: () =>
+        InterviewSessionRecord.find({ user: user._id })
+          .sort({ updatedAt: -1 })
+          .limit(8)
+          .lean(),
+    }),
   ]);
   const candidateSummary = buildCandidateDirectory(records)[0] || null;
   const analytics = buildAnalyticsSummary(records);

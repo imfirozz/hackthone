@@ -1,4 +1,5 @@
 const InterviewSessionRecord = require("../Models/InterviewSessionRecord");
+const { withMongoFallback } = require("../config/mongoRuntime");
 
 const METRIC_LABELS = {
   communication: "Communication",
@@ -639,10 +640,15 @@ const loadPersistedSessions = async ({ scope = "all", user = null } = {}) => {
     filter.user = user._id;
   }
 
-  return InterviewSessionRecord.find(filter)
-    .sort({ completedAt: -1, updatedAt: -1, startedAt: -1 })
-    .populate("user", "firstName lastName email role")
-    .lean();
+  return withMongoFallback({
+    label: "Records API using empty interview history fallback",
+    fallbackValue: [],
+    operation: () =>
+      InterviewSessionRecord.find(filter)
+        .sort({ completedAt: -1, updatedAt: -1, startedAt: -1 })
+        .populate("user", "firstName lastName email role")
+        .lean(),
+  });
 };
 
 const fetchInterviewRecords = async ({ scope = "all", user = null } = {}) => {

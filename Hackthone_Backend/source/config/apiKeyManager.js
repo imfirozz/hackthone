@@ -27,26 +27,43 @@ class ApiKeyManager {
    */
   initializeApiKeys() {
     const keys = [];
+    const seenKeys = new Set();
+
+    const addKey = (rawKey, priority, name) => {
+      const key = String(rawKey || "").trim();
+
+      if (!key || key.toLowerCase().startsWith("your_") || seenKeys.has(key)) {
+        return;
+      }
+
+      seenKeys.add(key);
+      keys.push({ key, priority, name });
+    };
     
     // Check for multiple API keys in environment
-    const primaryKey = (process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || "").trim();
-    const secondaryKey = (process.env.GEMINI_API_KEY_2 || "").trim();
-    const tertiaryKey = (process.env.GEMINI_API_KEY_3 || "").trim();
-    const quaternaryKey = (process.env.GEMINI_API_KEY_4 || "").trim();
+    const primaryKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || "";
+    const secondaryKey = process.env.GEMINI_API_KEY_2 || "";
+    const tertiaryKey = process.env.GEMINI_API_KEY_3 || "";
+    const quaternaryKey = process.env.GEMINI_API_KEY_4 || "";
+    const listedKeys = [
+      ...(process.env.GEMINI_API_KEYS || "")
+        .split(/[\n,]/)
+        .map((value) => value.trim())
+        .filter(Boolean),
+      ...(process.env.GOOGLE_API_KEYS || "")
+        .split(/[\n,]/)
+        .map((value) => value.trim())
+        .filter(Boolean),
+    ];
     
     // Add keys that are configured
-    if (primaryKey && !primaryKey.toLowerCase().startsWith("your_")) {
-      keys.push({ key: primaryKey, priority: 1, name: "PRIMARY" });
-    }
-    if (secondaryKey && !secondaryKey.toLowerCase().startsWith("your_")) {
-      keys.push({ key: secondaryKey, priority: 2, name: "SECONDARY" });
-    }
-    if (tertiaryKey && !tertiaryKey.toLowerCase().startsWith("your_")) {
-      keys.push({ key: tertiaryKey, priority: 3, name: "TERTIARY" });
-    }
-    if (quaternaryKey && !quaternaryKey.toLowerCase().startsWith("your_")) {
-      keys.push({ key: quaternaryKey, priority: 4, name: "QUATERNARY" });
-    }
+    addKey(primaryKey, 1, "PRIMARY");
+    addKey(secondaryKey, 2, "SECONDARY");
+    addKey(tertiaryKey, 3, "TERTIARY");
+    addKey(quaternaryKey, 4, "QUATERNARY");
+    listedKeys.forEach((value, index) => {
+      addKey(value, index + 5, `LIST_${index + 1}`);
+    });
     
     if (keys.length === 0) {
       console.warn(

@@ -1,4 +1,5 @@
 const InterviewSessionRecord = require("../Models/InterviewSessionRecord");
+const { withMongoFallback } = require("../config/mongoRuntime");
 
 const cleanText = (value = "") => String(value).replace(/\s+/g, " ").trim();
 
@@ -126,52 +127,62 @@ const persistInterviewSessionState = async ({ session, user = null }) => {
     return null;
   }
 
-  const existingRecord = await InterviewSessionRecord.findOne({ sessionId: session.sessionId });
-  const steps = buildInterviewSteps(session);
-  const status = resolveSessionStatus(session);
-  const startedAt =
-    existingRecord?.startedAt || toDateOrNull(session.createdAt) || new Date();
-  const completedAt =
-    status === "completed" ? existingRecord?.completedAt || new Date() : existingRecord?.completedAt || null;
+  return withMongoFallback({
+    label: "Interview session not persisted (session continues in Redis/memory)",
+    fallbackValue: null,
+    operation: async () => {
+      const existingRecord = await InterviewSessionRecord.findOne({
+        sessionId: session.sessionId,
+      });
+      const steps = buildInterviewSteps(session);
+      const status = resolveSessionStatus(session);
+      const startedAt =
+        existingRecord?.startedAt || toDateOrNull(session.createdAt) || new Date();
+      const completedAt =
+        status === "completed"
+          ? existingRecord?.completedAt || new Date()
+          : existingRecord?.completedAt || null;
 
-  return InterviewSessionRecord.findOneAndUpdate(
-    { sessionId: session.sessionId },
-    {
-      $set: {
-        user: user?._id || existingRecord?.user || null,
-        title: cleanText(session.title),
-        category: cleanText(session.category),
-        mode: cleanText(session.mode),
-        responseMode: normalizeResponseMode(session.responseMode),
-        company: cleanText(session.company),
-        round: cleanText(session.round),
-        domain: cleanText(session.domain) || "general",
-        skills: normalizeList(session.skills),
-        focus: normalizeList(session.focus),
-        questionTarget: Number(session.questionTarget) || 8,
-        currentDifficulty: cleanText(session.currentDifficulty) || "medium",
-        questionCount: Number(session.questionCount) || 0,
-        answerCount: steps.length,
-        status,
-        resumeFileName: cleanText(session.resumeFileName),
-        resumeParser: cleanText(session.resumeParser),
-        resumeSkills: normalizeResumeSkills(session.resumeSkills),
-        lastQuestion: session.lastQuestion || null,
-        lastEvaluation: session.lastEvaluation || null,
-        steps,
-        startedAt,
-        completedAt,
-      },
-      $setOnInsert: {
-        sessionId: cleanText(session.sessionId),
-      },
+      return InterviewSessionRecord.findOneAndUpdate(
+        { sessionId: session.sessionId },
+        {
+          $set: {
+            user: user?._id || existingRecord?.user || null,
+            title: cleanText(session.title),
+            category: cleanText(session.category),
+            mode: cleanText(session.mode),
+            responseMode: normalizeResponseMode(session.responseMode),
+            company: cleanText(session.company),
+            round: cleanText(session.round),
+            domain: cleanText(session.domain) || "general",
+            skills: normalizeList(session.skills),
+            focus: normalizeList(session.focus),
+            questionTarget: Number(session.questionTarget) || 8,
+            currentDifficulty: cleanText(session.currentDifficulty) || "medium",
+            questionCount: Number(session.questionCount) || 0,
+            answerCount: steps.length,
+            status,
+            resumeFileName: cleanText(session.resumeFileName),
+            resumeParser: cleanText(session.resumeParser),
+            resumeSkills: normalizeResumeSkills(session.resumeSkills),
+            lastQuestion: session.lastQuestion || null,
+            lastEvaluation: session.lastEvaluation || null,
+            steps,
+            startedAt,
+            completedAt,
+          },
+          $setOnInsert: {
+            sessionId: cleanText(session.sessionId),
+          },
+        },
+        {
+          upsert: true,
+          returnDocument: "after",
+          setDefaultsOnInsert: true,
+        },
+      );
     },
-    {
-      upsert: true,
-      returnDocument: "after",
-      setDefaultsOnInsert: true,
-    },
-  );
+  });
 };
 
 module.exports = {
