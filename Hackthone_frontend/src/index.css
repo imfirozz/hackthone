@@ -89,12 +89,12 @@ body {
 
 .app-background--home::before {
   background:
-    radial-gradient(circle at center, transparent 28%, rgba(0, 0, 0, 0.52) 70%, rgba(0, 0, 0, 0.84) 100%),
-    linear-gradient(180deg, rgba(0, 0, 0, 0.2) 0%, rgba(0, 0, 0, 0.62) 100%);
+    radial-gradient(circle at center, transparent 34%, rgba(0, 0, 0, 0.4) 72%, rgba(0, 0, 0, 0.74) 100%),
+    linear-gradient(180deg, rgba(0, 0, 0, 0.12) 0%, rgba(0, 0, 0, 0.5) 100%);
 }
 
 .app-background--home::after {
-  opacity: 0.22;
+  opacity: 0.14;
 }
 
 .app-spline-wrap {
@@ -133,8 +133,8 @@ body {
   min-height: 560px;
   transform: translate3d(-14%, -2%, 0) scale(1.08);
   transform-origin: top right;
-  filter: brightness(1.08) saturate(1.12) contrast(1.12);
-  opacity: 0.9;
+  filter: brightness(1.2) saturate(1.16) contrast(1.14);
+  opacity: 0.98;
 }
 
 .app-spline-viewer spline-viewer {
@@ -195,7 +195,7 @@ body {
     height: min(62vh, 700px);
     min-height: 500px;
     transform: translate3d(-12%, -1%, 0) scale(1.06);
-    opacity: 0.82;
+    opacity: 0.9;
   }
 }
 
@@ -230,7 +230,7 @@ body {
     min-height: 380px;
     transform: translate3d(-10%, 0, 0) scale(1.05);
     transform-origin: top right;
-    opacity: 0.68;
+    opacity: 0.78;
   }
 }
 
