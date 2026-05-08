@@ -50,6 +50,62 @@ body {
   min-height: 100vh;
 }
 
+/* Higher contrast surface layer for dashboard-family pages */
+.dashboard-contrast .bg-white,
+.dashboard-contrast .bg-slate-50 {
+  background: linear-gradient(
+    160deg,
+    rgba(15, 23, 42, 0.86) 0%,
+    rgba(12, 20, 36, 0.9) 55%,
+    rgba(8, 15, 31, 0.95) 100%
+  ) !important;
+}
+
+.dashboard-contrast .border-slate-100,
+.dashboard-contrast .border-slate-200 {
+  border-color: rgba(148, 163, 184, 0.32) !important;
+}
+
+.dashboard-contrast .divide-slate-100 > :not([hidden]) ~ :not([hidden]) {
+  border-color: rgba(148, 163, 184, 0.2) !important;
+}
+
+.dashboard-contrast .text-slate-900 {
+  color: #f8fafc !important;
+}
+
+.dashboard-contrast .text-slate-700 {
+  color: #e2e8f0 !important;
+}
+
+.dashboard-contrast .text-slate-600,
+.dashboard-contrast .text-slate-500 {
+  color: #cbd5e1 !important;
+}
+
+.dashboard-contrast .text-slate-400 {
+  color: rgba(226, 232, 240, 0.72) !important;
+}
+
+.dashboard-contrast .shadow-sm {
+  box-shadow:
+    0 18px 42px rgba(2, 6, 23, 0.32),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08) !important;
+}
+
+.dashboard-contrast input,
+.dashboard-contrast select,
+.dashboard-contrast textarea {
+  background: rgba(15, 23, 42, 0.74) !important;
+  border-color: rgba(148, 163, 184, 0.32) !important;
+  color: #f8fafc !important;
+}
+
+.dashboard-contrast input::placeholder,
+.dashboard-contrast textarea::placeholder {
+  color: rgba(203, 213, 225, 0.62) !important;
+}
+
 .app-content {
   position: relative;
   z-index: 1;
