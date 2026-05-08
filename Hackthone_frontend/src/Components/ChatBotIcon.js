@@ -1017,9 +1017,7 @@ function MessageBubble({ message, isStreaming = false, onStreamComplete }) {
             width: 36,
             height: 36,
             borderRadius: "50%",
-            background: message.isError
-              ? "linear-gradient(135deg, #ef4444, #f97316)"
-              : "linear-gradient(135deg, #3b82f6, #06b6d4, #8b5cf6)",
+            background: message.isError ? "linear-gradient(135deg, #ef4444, #f97316)" : "transparent",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -1030,12 +1028,26 @@ function MessageBubble({ message, isStreaming = false, onStreamComplete }) {
             marginTop: 2,
             boxShadow: message.isError
               ? "0 0 12px rgba(239,68,68,0.25)"
-              : "0 0 16px rgba(59,130,246,0.2)",
+              : "0 4px 12px rgba(2,6,23,0.35)",
             color: "#fff",
             letterSpacing: "-0.02em",
+            overflow: "hidden",
           }}
         >
-          {message.isError ? "!" : "AI"}
+          {message.isError ? (
+            "!"
+          ) : (
+            <img
+              src={CHATBOT_ICON_URL}
+              alt="AI"
+              style={{
+                width: "100%",
+                height: "100%",
+                objectFit: "cover",
+                borderRadius: "50%",
+              }}
+            />
+          )}
         </div>
       )}
       <div
@@ -2046,18 +2058,24 @@ export default function ChatBotIcon() {
                   width: 44,
                   height: 44,
                   borderRadius: "50%",
-                  background: "linear-gradient(135deg, #3b82f6 0%, #06b6d4 60%, #8b5cf6 100%)",
+                  background: "transparent",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  fontSize: 16,
-                  fontWeight: 800,
-                  color: "#fff",
-                  boxShadow: "0 0 24px rgba(59,130,246,0.3), 0 0 8px rgba(6,182,212,0.2)",
-                  letterSpacing: "-0.02em",
+                  boxShadow: "0 8px 22px rgba(2,6,23,0.35)",
+                  overflow: "hidden",
                 }}
               >
-                AI
+                <img
+                  src={CHATBOT_ICON_URL}
+                  alt="AI"
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    objectFit: "cover",
+                    borderRadius: "50%",
+                  }}
+                />
               </div>
               <span
                 style={{
